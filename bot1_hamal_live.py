@@ -6,24 +6,22 @@ import random
 import logging
 import os
 import urllib3
+import threading
 from datetime import datetime, timezone, timedelta
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# ביטול התראות SSL (חשוב לסביבות מסוננות כמו נטפרי)
+# ביטול התראות SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# ניסיון ייבוא של ShabbatManager - אם חסר, המערכת תתריע
 try:
     from shabbat import ShabbatManager
 except ImportError:
-    print("❌ שגיאה: קובץ shabbat.py חסר בתיקייה!")
-    class ShabbatManager: # מחלקת דמי למניעת קריסה מיידית
+    print("❌ שגיאה: קובץ shabbat.py חסר!")
+    class ShabbatManager:
         def is_shabbat(self): return False
         def should_send_shavua_tov(self): return False
         def should_send_shabbat_shalom(self): return False
 
-# ============================================================
-# הגדרות מערכת
-# ============================================================
 LOG_DIR  = "logs"
 LOG_FILE = os.path.join(LOG_DIR, "bot1.log")
 
@@ -56,7 +54,7 @@ SOURCE_DISPLAY = {
     "רדיו קול ברמה":  "🟠 רדיו קול ברמה",
 }
 
-BANNED_WORDS = ["זמר", "סלבס", "כדורגל", "אינסטגרם", "בידור", "להטב", "האח הגדול"] # רשימה מקוצרת לדוגמה
+BANNED_WORDS = ["זמר", "סלבס", "כדורגל", "אינסטגרם", "בידור", "להטב", "האח הגדול"]
 
 SOURCES = [
     {"name": "אבו עלי אקספרס", "url": "https://abualiexpress.com/feed/"},
@@ -84,73 +82,73 @@ def is_safe(text):
 def send_to_targets(text, author, link=None):
     if link:
         text += f"\n\n🔗 [לכתבה המלאה]({link})"
-    
     payload = {
-        "text": text, 
-        "author": author, 
+        "text": text,
+        "author": author,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     headers = {"X-API-Key": API_SECRET_KEY}
-    
     for url in TARGET_URLS:
         try:
-            # verify=False פותר בעיות חיבור בנטפרי/SSL
             res = requests.post(url, json=payload, headers=headers, timeout=10, verify=False)
             if res.status_code == 200:
-                print(f"✅ הצלחה: נשלח ל-{url.split('.')[-3]}")
+                print(f"✅ נשלח ל-{url.split('.')[-3]}")
             else:
                 print(f"⚠️ שגיאה ב-{url.split('.')[-3]}: סטטוס {res.status_code}")
         except Exception as e:
             log.error(f"קריסה בשליחה ל-{url}: {e}")
-            print(f"❌ נכשל לשלוח ל-{url}")
 
-def run():
+def run_bot():
     sb = ShabbatManager()
-    print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות | שולח לשני ערוצים")
-
+    print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות")
     while True:
-        now = datetime.now()
-
-        # בדיקת שבת
         if sb.is_shabbat():
-            print(f"🕯️ שבת כעת - הבוט בהשהיה...")
+            print("🕯️ שבת כעת - הבוט בהשהיה...")
             time.sleep(600)
             continue
-
         sources = list(SOURCES)
         random.shuffle(sources)
-
         for src in sources:
             try:
-                # שימוש ב-headers כדי לדמות דפדפן (מונע חסימות)
                 headers = {'User-Agent': 'Mozilla/5.0'}
                 response = requests.get(src["url"], timeout=10, verify=False, headers=headers)
                 feed = feedparser.parse(response.content)
-
                 for entry in feed.entries[:3]:
                     if entry.link in posted_links:
                         continue
-                    
                     title = clean_text(entry.get('title', ''))
                     if not is_safe(title):
                         continue
-
                     display = SOURCE_DISPLAY.get(src['name'], src['name'])
                     msg = f"⚡ **מבזק** | {display}\n\n🔴 **{title}**"
-                    
                     link = entry.link if src['name'] in APPROVED_LINK_SITES else None
-                    
-                    # שליחה לשני הערוצים
                     send_to_targets(msg, display, link)
-                    
                     posted_links.add(entry.link)
-                    if len(posted_links) > 1000: posted_links.clear()
+                    if len(posted_links) > 1000:
+                        posted_links.clear()
                     time.sleep(2)
-
             except Exception as e:
                 log.error(f"שגיאה במקור {src['name']}: {e}")
+        time.sleep(30)
 
-        time.sleep(30) # המתנה בין סבבים
+# שרת HTTP פשוט כדי ש-Render לא יכבה את השירות
+class KeepAliveHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running!")
+    def log_message(self, format, *args):
+        pass  # שתיקה בלוגים
+
+def run_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), KeepAliveHandler)
+    print(f"🌐 שרת keep-alive על פורט {port}")
+    server.serve_forever()
 
 if __name__ == "__main__":
-    run()
+    # הרץ את הבוט בthread נפרד
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+    # הרץ את שרת ה-HTTP בthread הראשי
+    run_server()
