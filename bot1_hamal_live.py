@@ -10,7 +10,6 @@ import threading
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# ביטול התראות SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 try:
@@ -92,9 +91,9 @@ def send_to_targets(text, author, link=None):
         try:
             res = requests.post(url, json=payload, headers=headers, timeout=10, verify=False)
             if res.status_code == 200:
-                print(f"✅ נשלח ל-{url.split('.')[-3]}")
+                print(f"✅ נשלח ל-{url.split('/')[2]}")
             else:
-                print(f"⚠️ שגיאה ב-{url.split('.')[-3]}: סטטוס {res.status_code}")
+                print(f"⚠️ שגיאה ב-{url.split('/')[2]}: סטטוס {res.status_code}")
         except Exception as e:
             log.error(f"קריסה בשליחה ל-{url}: {e}")
 
@@ -131,24 +130,26 @@ def run_bot():
                 log.error(f"שגיאה במקור {src['name']}: {e}")
         time.sleep(30)
 
-# שרת HTTP פשוט כדי ש-Render לא יכבה את השירות
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
         self.end_headers()
         self.wfile.write(b"Bot is running!")
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
     def log_message(self, format, *args):
-        pass  # שתיקה בלוגים
+        pass
 
 def run_server():
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), KeepAliveHandler)
     print(f"🌐 שרת keep-alive על פורט {port}")
     server.serve_forever()
 
 if __name__ == "__main__":
-    # הרץ את הבוט בthread נפרד
     bot_thread = threading.Thread(target=run_bot, daemon=True)
     bot_thread.start()
-    # הרץ את שרת ה-HTTP בthread הראשי
     run_server()
