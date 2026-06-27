@@ -99,12 +99,33 @@ def send_to_targets(text, author, link=None):
 
 def run_bot():
     sb = ShabbatManager()
+    sent_shabbat_shalom_date = None
+    sent_shavua_tov_date = None
     print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות")
     while True:
+        today = datetime.now().date()
+
+        if sb.should_send_shabbat_shalom() and sent_shabbat_shalom_date != today:
+            try:
+                send_to_targets(sb.get_greeting(), "📻 מערכת")
+                sent_shabbat_shalom_date = today
+                log.info("נשלחה ברכת שבת שלום")
+            except Exception as e:
+                log.error(f"שגיאה בשליחת ברכת שבת שלום: {e}")
+
         if sb.is_shabbat():
             print("🕯️ שבת כעת - הבוט בהשהיה...")
             time.sleep(600)
             continue
+
+        if sb.should_send_shavua_tov() and sent_shavua_tov_date != today:
+            try:
+                send_to_targets(sb.get_shavua_tov_greeting(), "📻 מערכת")
+                sent_shavua_tov_date = today
+                log.info("נשלחה ברכת שבוע טוב")
+            except Exception as e:
+                log.error(f"שגיאה בשליחת ברכת שבוע טוב: {e}")
+
         sources = list(SOURCES)
         random.shuffle(sources)
         for src in sources:
