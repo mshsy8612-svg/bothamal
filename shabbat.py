@@ -1,7 +1,10 @@
 import math
 import json
 import urllib.request
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+IL_TZ = ZoneInfo("Asia/Jerusalem")
 
 # ══════════════════════════════════════════════════
 # הגדרת ערים ומנהגים
@@ -46,7 +49,7 @@ class ShabbatManager:
             for item in data.get("items", []):
                 cat = item.get("category", "")
                 dt_str = item.get("date", "")
-                try: dt = datetime.fromisoformat(dt_str).replace(tzinfo=None)
+                try: dt = datetime.fromisoformat(dt_str).astimezone(IL_TZ).replace(tzinfo=None)
                 except: continue
                 if cat == "candles":
                     res["candles"] = dt
@@ -67,14 +70,14 @@ class ShabbatManager:
     def is_shabbat(self) -> bool:
         t = self.get_times(BASE_CITY, 40)
         if not t["candles"] or not t["havdalah"]: return False
-        now = datetime.now()
+        now = datetime.now(IL_TZ).replace(tzinfo=None)
         # שבת מתחילה 40 דקות לפני שקיעה (= זמן ההדלקה) ומסתיימת בצאת השבת
         return t["candles"] <= now <= t["havdalah"]
 
     def should_send_shabbat_shalom(self) -> bool:
         t = self.get_times(BASE_CITY, 40)
         if not t["candles"]: return False
-        now = datetime.now()
+        now = datetime.now(IL_TZ).replace(tzinfo=None)
         # שלח ברכה רק בחלון של 60 דקות לפני כניסת שבת (לא בשבת עצמה!)
         diff = (t["candles"] - now).total_seconds()
         return 0 < diff < 3600
@@ -82,7 +85,7 @@ class ShabbatManager:
     def should_send_shavua_tov(self) -> bool:
         t = self.get_times(BASE_CITY, 40)
         if not t["havdalah"]: return False
-        diff = (datetime.now() - t["havdalah"]).total_seconds()
+        diff = (datetime.now(IL_TZ).replace(tzinfo=None) - t["havdalah"]).total_seconds()
         return 0 < diff < 3600
 
     def get_greeting(self) -> str:
