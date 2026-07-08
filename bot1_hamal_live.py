@@ -38,7 +38,8 @@ log = setup_logger()
 
 TARGET_URLS = [
     "https://new0040005.duckdns.org/api/import/post",
-    "https://new0040000.duckdns.org/api/import/post"
+    "https://new0040000.duckdns.org/api/import/post",
+    "https://my-channel-w1nx.onrender.com/api/import/post"
 ]
 API_SECRET_KEY = "k9f2sh392zh32_secure_random_key"
 
