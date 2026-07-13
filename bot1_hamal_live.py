@@ -21,6 +21,12 @@ except ImportError:
         def should_send_shavua_tov(self): return False
         def should_send_shabbat_shalom(self): return False
 
+try:
+    from hourly_updates import build_hourly_message
+except ImportError:
+    print("❌ שגיאה: קובץ hourly_updates.py חסר!")
+    def build_hourly_message(): return ""
+
 LOG_DIR  = "logs"
 LOG_FILE = os.path.join(LOG_DIR, "bot1.log")
 
@@ -114,9 +120,23 @@ def run_bot():
     sb = ShabbatManager()
     sent_shabbat_shalom_date = None
     sent_shavua_tov_date = None
+    last_hourly_key = None  # (date, hour) של העדכון השעתי האחרון שנשלח
     print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות")
     while True:
-        today = datetime.now().date()
+        now = datetime.now()
+        today = now.date()
+
+        hourly_key = (today, now.hour)
+        if hourly_key != last_hourly_key and not sb.is_shabbat():
+            try:
+                msg = build_hourly_message()
+                if msg:
+                    send_to_targets(msg, "🕐 עדכון שעתי")
+                    log.info("נשלח עדכון שעתי")
+                last_hourly_key = hourly_key
+            except Exception as e:
+                log.error(f"שגיאה בשליחת עדכון שעתי: {e}")
+                print(f"❌ שגיאה בשליחת עדכון שעתי: {e}")
 
         if sb.should_send_shabbat_shalom() and sent_shabbat_shalom_date != today:
             try:
