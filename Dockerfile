@@ -5,5 +5,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY bot1_hamal_live.py .
 COPY shabbat.py .
 RUN mkdir -p logs
-EXPOSE 8080
+# הפורט בפועל נקבע ע"י משתנה הסביבה PORT (ברירת מחדל 10000 בקוד עצמו)
+ENV PORT=10000
+EXPOSE 10000
 CMD ["python", "-u", "bot1_hamal_live.py"]

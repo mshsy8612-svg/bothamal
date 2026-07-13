@@ -1,10 +1,12 @@
 import math
 import json
+import logging
 import urllib.request
 from datetime import datetime, date, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 IL_TZ = ZoneInfo("Asia/Jerusalem")
+log = logging.getLogger("bot1")
 
 # ══════════════════════════════════════════════════
 # הגדרת ערים ומנהגים
@@ -40,7 +42,9 @@ class ShabbatManager:
             req = urllib.request.Request(url, headers={"User-Agent": "NewsBot/1.0"})
             with urllib.request.urlopen(req, timeout=8) as r:
                 return json.loads(r.read().decode())
-        except: return None
+        except Exception as e:
+            log.error(f"shabbat.py: כשל בשליפת זמנים ל-geonameid={geoname_id}: {e}")
+            return None
 
     def get_times(self, city: dict, offset: int) -> dict:
         data = self._fetch(city["id"], offset)
@@ -49,8 +53,11 @@ class ShabbatManager:
             for item in data.get("items", []):
                 cat = item.get("category", "")
                 dt_str = item.get("date", "")
-                try: dt = datetime.fromisoformat(dt_str).astimezone(IL_TZ).replace(tzinfo=None)
-                except: continue
+                try:
+                    dt = datetime.fromisoformat(dt_str).astimezone(IL_TZ).replace(tzinfo=None)
+                except Exception as e:
+                    log.error(f"shabbat.py: כשל בפענוח תאריך '{dt_str}': {e}")
+                    continue
                 if cat == "candles":
                     res["candles"] = dt
                     title = item.get("title", "")
@@ -171,7 +178,8 @@ class ShabbatManager:
                 first_line = post.split("\n")[0][:120]
                 lines.append(f"{i}. {first_line}")
             return "\n".join(lines)
-        except:
+        except Exception as e:
+            log.error(f"shabbat.py: כשל בשליפת סיכום פוסטי שבת: {e}")
             return ""
 
     def get_shabbat_greeting(self): return self.get_greeting()

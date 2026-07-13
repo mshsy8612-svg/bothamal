@@ -36,12 +36,23 @@ def setup_logger():
 
 log = setup_logger()
 
-TARGET_URLS = [
+_DEFAULT_TARGET_URLS = [
     "https://new0040005.duckdns.org/api/import/post",
     "https://new0040000.duckdns.org/api/import/post",
     "https://my-channel-w1nx.onrender.com/api/import/post"
 ]
-API_SECRET_KEY = "k9f2sh392zh32_secure_random_key"
+_DEFAULT_API_SECRET_KEY = "k9f2sh392zh32_secure_random_key"
+
+# ניתן לדרוס את שני אלה עם משתני סביבה בלי לגעת בקוד:
+#   TARGET_URLS=https://a.com/api/import/post,https://b.com/api/import/post
+#   API_SECRET_KEY=xxxxx
+# אם משתני הסביבה לא מוגדרים, הבוט ממשיך לעבוד עם הערכים המקוריים (שום שינוי בהתנהגות).
+_env_targets = os.environ.get("TARGET_URLS")
+TARGET_URLS = [u.strip() for u in _env_targets.split(",") if u.strip()] if _env_targets else _DEFAULT_TARGET_URLS
+API_SECRET_KEY = os.environ.get("API_SECRET_KEY", _DEFAULT_API_SECRET_KEY)
+
+if API_SECRET_KEY == _DEFAULT_API_SECRET_KEY:
+    print("⚠️  אזהרה: משתמש במפתח API בררת המחדל (חשוף בקוד). מומלץ להגדיר משתנה סביבה API_SECRET_KEY ולהחליף את המפתח.")
 
 APPROVED_LINK_SITES = ["אבו עלי אקספרס", "NZIV", "כל רגע", "המחדש", "רדיו קול חי", "רדיו קול ברמה"]
 
@@ -97,6 +108,7 @@ def send_to_targets(text, author, link=None):
                 print(f"⚠️ שגיאה ב-{url.split('/')[2]}: סטטוס {res.status_code}")
         except Exception as e:
             log.error(f"קריסה בשליחה ל-{url}: {e}")
+            print(f"❌ קריסה בשליחה ל-{url}: {e}")
 
 def run_bot():
     sb = ShabbatManager()
@@ -150,6 +162,7 @@ def run_bot():
                     time.sleep(2)
             except Exception as e:
                 log.error(f"שגיאה במקור {src['name']}: {e}")
+                print(f"❌ שגיאה במקור {src['name']}: {e}")
         time.sleep(30)
 
 class KeepAliveHandler(BaseHTTPRequestHandler):
