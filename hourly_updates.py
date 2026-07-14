@@ -34,21 +34,29 @@ CRYPTO = ["bitcoin", "ethereum"]
 
 
 def get_weather_text() -> str:
-    lines = ["🌤️ **מזג אוויר עכשיו:**"]
+    lines = ["🌤️ **מזג אוויר היום:**"]
     ok = False
     for city in WEATHER_CITIES:
         try:
             url = (
                 "https://api.open-meteo.com/v1/forecast"
                 f"?latitude={city['lat']}&longitude={city['lon']}"
-                "&current=temperature_2m,weather_code&timezone=Asia%2FJerusalem"
+                "&current=temperature_2m,weather_code"
+                "&daily=temperature_2m_max,temperature_2m_min,weather_code"
+                "&timezone=Asia%2FJerusalem&forecast_days=1"
             )
             r = requests.get(url, headers=HEADERS, timeout=8)
             r.raise_for_status()
-            data = r.json()["current"]
-            temp = round(data["temperature_2m"])
-            desc, emoji = WEATHER_CODES.get(data["weather_code"], ("", "🌡️"))
-            lines.append(f"{emoji} **{city['name']}:** {temp}°C {desc}")
+            data = r.json()
+            current = data["current"]
+            daily = data["daily"]
+            now_temp = round(current["temperature_2m"])
+            t_min = round(daily["temperature_2m_min"][0])
+            t_max = round(daily["temperature_2m_max"][0])
+            desc, emoji = WEATHER_CODES.get(daily["weather_code"][0], ("", "🌡️"))
+            lines.append(
+                f"{emoji} **{city['name']}:** {t_min}°C–{t_max}°C {desc} (עכשיו {now_temp}°C)"
+            )
             ok = True
         except Exception as e:
             log.error(f"hourly_updates: כשל במזג אוויר עבור {city['name']}: {e}")
