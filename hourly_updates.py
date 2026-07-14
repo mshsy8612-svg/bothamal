@@ -57,16 +57,12 @@ def get_weather_text() -> str:
             t_min = round(daily["temperature_2m_min"][0])
             t_max = round(daily["temperature_2m_max"][0])
             _, emoji = WEATHER_CODES.get(daily["weather_code"][0], ("", "🌡️"))
-            entries.append(f"{emoji} **{city['name']}:** {now_temp}° ({t_min}°–{t_max}°)")
+            entries.append(f"{emoji}  **{city['name']}**  ·  {now_temp}°C  (טווח היום {t_min}°–{t_max}°)")
         except Exception as e:
             log.error(f"hourly_updates: כשל במזג אוויר עבור {city['name']}: {e}")
     if not entries:
         return ""
-    lines = ["🌤️ **מזג אוויר (עכשיו / טווח יומי):**"]
-    # שתי ערים בשורה כדי לא להאריך מדי את ההודעה
-    for i in range(0, len(entries), 2):
-        pair = entries[i:i + 2]
-        lines.append("   |   ".join(pair))
+    lines = ["🌦️ **תחזית מזג אוויר**"] + entries
     return "\n".join(lines)
 
 
@@ -115,7 +111,7 @@ def _get_price_cryptocompare(symbol: str) -> float:
 def get_crypto_text(usd_to_ils: float | None) -> str:
     """usd_to_ils: כמה ש"ח ב-1 דולר (כדי להציג גם בשקלים בלי קריאת API נוספת). אם None - יוצג רק דולר.
     מנסה קודם Binance, ואם זה נכשל (למשל חסימה גיאוגרפית משרתים בארה"ב) - נופל ל-CryptoCompare."""
-    lines = ["₿ **קריפטו:**"]
+    lines = ["₿ **שוק הקריפטו**"]
     ok = False
     for cid, (binance_symbol, display_name) in BINANCE_SYMBOLS.items():
         usd = None
@@ -131,21 +127,18 @@ def get_crypto_text(usd_to_ils: float | None) -> str:
                 log.error(f"hourly_updates: גם CryptoCompare נכשל עבור {display_name}: {e2}")
         if usd is not None:
             if usd_to_ils:
-                lines.append(f"🔸 **{display_name}:** ${usd:,.0f} | {usd * usd_to_ils:,.0f} ₪")
+                lines.append(f"🔸  **{display_name}**  ·  ${usd:,.0f}  ({usd * usd_to_ils:,.0f} ₪)")
             else:
-                lines.append(f"🔸 **{display_name}:** ${usd:,.0f}")
+                lines.append(f"🔸  **{display_name}**  ·  ${usd:,.0f}")
             ok = True
     return "\n".join(lines) if ok else ""
 
 
 def build_hourly_message() -> str:
-    """מרכיב הודעה אחת משולבת. אם מקור מסוים נכשל, הוא פשוט לא מופיע - שאר המקורות עדיין נשלחים."""
-    rates = get_currency_rates()
-    usd_to_ils = rates.get("USD")
-    sections = [get_weather_text(), get_currency_text(rates), get_crypto_text(usd_to_ils)]
-    sections = [s for s in sections if s]
-    if not sections:
+    """מרכיב הודעה שעתית מעוצבת. כרגע רק מזג אוויר."""
+    weather = get_weather_text()
+    if not weather:
         return ""
-    msg = "🕐 **עדכון שעתי**\n\n"
-    msg += "\n\n".join(sections)
-    return msg
+    divider = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    header = f"🕐✨ **עדכון שעתי** ✨\n{divider}"
+    return f"{header}\n\n{weather}"
