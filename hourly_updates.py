@@ -12,10 +12,15 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; bothamal-bot/1.0)"}
 
 # ערים לעדכון מזג אוויר (משתמש באותם קואורדינטות כמו shabbat.py)
 WEATHER_CITIES = [
-    {"name": "ירושלים",  "lat": 31.7683, "lon": 35.2137},
-    {"name": "תל אביב",  "lat": 32.0667, "lon": 34.7667},
-    {"name": "חיפה",     "lat": 32.8000, "lon": 34.9833},
-    {"name": "באר שבע",  "lat": 31.2500, "lon": 34.7833},
+    {"name": "ירושלים",     "lat": 31.7683, "lon": 35.2137},
+    {"name": "תל אביב",     "lat": 32.0667, "lon": 34.7667},
+    {"name": "חיפה",        "lat": 32.8000, "lon": 34.9833},
+    {"name": "באר שבע",     "lat": 31.2500, "lon": 34.7833},
+    {"name": "מודיעין עילית", "lat": 31.9316, "lon": 35.0417},
+    {"name": "אלעד",        "lat": 32.0505, "lon": 34.9505},
+    {"name": "בית שמש",     "lat": 31.7463, "lon": 34.9887},
+    {"name": "ביתר עילית",  "lat": 31.6976, "lon": 35.1194},
+    {"name": "טבריה",       "lat": 32.7922, "lon": 35.5312},
 ]
 
 # קודי מזג אוויר (WMO) -> תיאור + אימוג'י, לפי Open-Meteo
@@ -34,33 +39,35 @@ CRYPTO = ["bitcoin", "ethereum"]
 
 
 def get_weather_text() -> str:
-    lines = ["🌤️ **מזג אוויר היום:**"]
-    ok = False
+    entries = []
     for city in WEATHER_CITIES:
         try:
             url = (
                 "https://api.open-meteo.com/v1/forecast"
                 f"?latitude={city['lat']}&longitude={city['lon']}"
-                "&current=temperature_2m,weather_code"
+                "&current=temperature_2m"
                 "&daily=temperature_2m_max,temperature_2m_min,weather_code"
                 "&timezone=Asia%2FJerusalem&forecast_days=1"
             )
             r = requests.get(url, headers=HEADERS, timeout=8)
             r.raise_for_status()
             data = r.json()
-            current = data["current"]
+            now_temp = round(data["current"]["temperature_2m"])
             daily = data["daily"]
-            now_temp = round(current["temperature_2m"])
             t_min = round(daily["temperature_2m_min"][0])
             t_max = round(daily["temperature_2m_max"][0])
-            desc, emoji = WEATHER_CODES.get(daily["weather_code"][0], ("", "🌡️"))
-            lines.append(
-                f"{emoji} **{city['name']}:** {t_min}°C–{t_max}°C {desc} (עכשיו {now_temp}°C)"
-            )
-            ok = True
+            _, emoji = WEATHER_CODES.get(daily["weather_code"][0], ("", "🌡️"))
+            entries.append(f"{emoji} **{city['name']}:** {now_temp}° ({t_min}°–{t_max}°)")
         except Exception as e:
             log.error(f"hourly_updates: כשל במזג אוויר עבור {city['name']}: {e}")
-    return "\n".join(lines) if ok else ""
+    if not entries:
+        return ""
+    lines = ["🌤️ **מזג אוויר (עכשיו / טווח יומי):**"]
+    # שתי ערים בשורה כדי לא להאריך מדי את ההודעה
+    for i in range(0, len(entries), 2):
+        pair = entries[i:i + 2]
+        lines.append("   |   ".join(pair))
+    return "\n".join(lines)
 
 
 def get_currency_rates() -> dict:
