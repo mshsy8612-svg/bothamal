@@ -136,7 +136,9 @@ def run_bot():
                 if msg:
                     send_to_targets(msg, "🕐 עדכון שעתי")
                     log.info("נשלח עדכון שעתי")
-                last_hourly_key = hourly_key
+                    last_hourly_key = hourly_key  # רק בהצלחה - אחרת ננסה שוב בסבב הבא
+                else:
+                    log.error("עדכון שעתי: build_hourly_message החזיר ריק (כל המקורות נכשלו) - ינסה שוב בסבב הבא")
             except Exception as e:
                 log.error(f"שגיאה בשליחת עדכון שעתי: {e}")
                 print(f"❌ שגיאה בשליחת עדכון שעתי: {e}")
