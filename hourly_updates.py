@@ -7,6 +7,9 @@ import requests
 
 log = logging.getLogger("bot1")
 
+# חלק מה-APIs חוסמים בקשות עם ה-User-Agent ברירת המחדל של requests
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; bothamal-bot/1.0)"}
+
 # ערים לעדכון מזג אוויר (משתמש באותם קואורדינטות כמו shabbat.py)
 WEATHER_CITIES = [
     {"name": "ירושלים",  "lat": 31.7683, "lon": 35.2137},
@@ -40,7 +43,7 @@ def get_weather_text() -> str:
                 f"?latitude={city['lat']}&longitude={city['lon']}"
                 "&current=temperature_2m,weather_code&timezone=Asia%2FJerusalem"
             )
-            r = requests.get(url, timeout=8)
+            r = requests.get(url, headers=HEADERS, timeout=8)
             r.raise_for_status()
             data = r.json()["current"]
             temp = round(data["temperature_2m"])
@@ -56,7 +59,7 @@ def get_currency_rates() -> dict:
     """קריאה יחידה במקום 3 נפרדות - פחות סיכוי לכשל חלקי. מחזיר {'USD': 3.65, 'EUR': 3.9, 'GBP': 4.6} או {}"""
     try:
         url = f"https://api.frankfurter.app/latest?from=ILS&to={','.join(CURRENCIES)}"
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, headers=HEADERS, timeout=10)
         r.raise_for_status()
         rates_from_ils = r.json()["rates"]  # כמה דולר/יורו/ליש"ט ב-1 ש"ח
         return {cur: 1 / rate for cur, rate in rates_from_ils.items() if rate}
@@ -75,27 +78,48 @@ def get_currency_text(rates: dict) -> str:
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
-# סמלי המסחר ב-Binance לכל מטבע קריפטו (מול USDT, שקרוב מאוד ל-USD)
+# סמלי מסחר לכל מטבע קריפטו
 BINANCE_SYMBOLS = {"bitcoin": ("BTCUSDT", "Bitcoin (BTC)"), "ethereum": ("ETHUSDT", "Ethereum (ETH)")}
+CRYPTOCOMPARE_SYMBOLS = {"bitcoin": ("BTC", "Bitcoin (BTC)"), "ethereum": ("ETH", "Ethereum (ETH)")}
+
+
+def _get_price_binance(symbol: str) -> float:
+    url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
+    r = requests.get(url, headers=HEADERS, timeout=10)
+    r.raise_for_status()
+    return float(r.json()["price"])
+
+
+def _get_price_cryptocompare(symbol: str) -> float:
+    url = f"https://min-api.cryptocompare.com/data/price?fsym={symbol}&tsyms=USD"
+    r = requests.get(url, headers=HEADERS, timeout=10)
+    r.raise_for_status()
+    return float(r.json()["USD"])
 
 
 def get_crypto_text(usd_to_ils: float | None) -> str:
-    """usd_to_ils: כמה ש"ח ב-1 דולר (כדי להציג גם בשקלים בלי קריאת API נוספת). אם None - יוצג רק דולר."""
+    """usd_to_ils: כמה ש"ח ב-1 דולר (כדי להציג גם בשקלים בלי קריאת API נוספת). אם None - יוצג רק דולר.
+    מנסה קודם Binance, ואם זה נכשל (למשל חסימה גיאוגרפית משרתים בארה"ב) - נופל ל-CryptoCompare."""
     lines = ["₿ **קריפטו:**"]
     ok = False
-    for cid, (symbol, display_name) in BINANCE_SYMBOLS.items():
+    for cid, (binance_symbol, display_name) in BINANCE_SYMBOLS.items():
+        usd = None
         try:
-            url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-            r = requests.get(url, timeout=10)
-            r.raise_for_status()
-            usd = float(r.json()["price"])
+            usd = _get_price_binance(binance_symbol)
+        except Exception as e:
+            log.error(f"hourly_updates: Binance נכשל עבור {display_name}: {e}")
+            try:
+                cc_symbol = CRYPTOCOMPARE_SYMBOLS[cid][0]
+                usd = _get_price_cryptocompare(cc_symbol)
+                log.info(f"hourly_updates: {display_name} נשלף בהצלחה דרך CryptoCompare (גיבוי)")
+            except Exception as e2:
+                log.error(f"hourly_updates: גם CryptoCompare נכשל עבור {display_name}: {e2}")
+        if usd is not None:
             if usd_to_ils:
                 lines.append(f"🔸 **{display_name}:** ${usd:,.0f} | {usd * usd_to_ils:,.0f} ₪")
             else:
                 lines.append(f"🔸 **{display_name}:** ${usd:,.0f}")
             ok = True
-        except Exception as e:
-            log.error(f"hourly_updates: כשל בשליפת מחיר {display_name}: {e}")
     return "\n".join(lines) if ok else ""
 
 
