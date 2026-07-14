@@ -52,46 +52,58 @@ def get_weather_text() -> str:
     return "\n".join(lines) if ok else ""
 
 
-def get_currency_text() -> str:
+def get_currency_rates() -> dict:
+    """קריאה יחידה במקום 3 נפרדות - פחות סיכוי לכשל חלקי. מחזיר {'USD': 3.65, 'EUR': 3.9, 'GBP': 4.6} או {}"""
+    try:
+        url = f"https://api.frankfurter.app/latest?from=ILS&to={','.join(CURRENCIES)}"
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        rates_from_ils = r.json()["rates"]  # כמה דולר/יורו/ליש"ט ב-1 ש"ח
+        return {cur: 1 / rate for cur, rate in rates_from_ils.items() if rate}
+    except Exception as e:
+        log.error(f"hourly_updates: כשל בשליפת שערי מטבע: {e}")
+        return {}
+
+
+def get_currency_text(rates: dict) -> str:
+    if not rates:
+        return ""
     lines = ["💱 **שערי מטבע (מול ₪):**"]
-    ok = False
     for cur in CURRENCIES:
-        try:
-            url = f"https://api.frankfurter.app/latest?from={cur}&to=ILS"
-            r = requests.get(url, timeout=8)
-            r.raise_for_status()
-            rate = r.json()["rates"]["ILS"]
-            lines.append(f"💵 **{cur}:** {rate:.2f} ₪")
-            ok = True
-        except Exception as e:
-            log.error(f"hourly_updates: כשל בשער מטבע {cur}: {e}")
-    return "\n".join(lines) if ok else ""
+        if cur in rates:
+            lines.append(f"💵 **{cur}:** {rates[cur]:.2f} ₪")
+    return "\n".join(lines) if len(lines) > 1 else ""
 
 
-def get_crypto_text() -> str:
+# סמלי המסחר ב-Binance לכל מטבע קריפטו (מול USDT, שקרוב מאוד ל-USD)
+BINANCE_SYMBOLS = {"bitcoin": ("BTCUSDT", "Bitcoin (BTC)"), "ethereum": ("ETHUSDT", "Ethereum (ETH)")}
+
+
+def get_crypto_text(usd_to_ils: float | None) -> str:
+    """usd_to_ils: כמה ש"ח ב-1 דולר (כדי להציג גם בשקלים בלי קריאת API נוספת). אם None - יוצג רק דולר."""
     lines = ["₿ **קריפטו:**"]
     ok = False
-    try:
-        ids = ",".join(CRYPTO)
-        url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd,ils"
-        r = requests.get(url, timeout=8)
-        r.raise_for_status()
-        data = r.json()
-        names = {"bitcoin": "Bitcoin (BTC)", "ethereum": "Ethereum (ETH)"}
-        for cid in CRYPTO:
-            if cid in data:
-                usd = data[cid].get("usd")
-                ils = data[cid].get("ils")
-                lines.append(f"🔸 **{names.get(cid, cid)}:** ${usd:,.0f} | {ils:,.0f} ₪")
-                ok = True
-    except Exception as e:
-        log.error(f"hourly_updates: כשל בשליפת קריפטו: {e}")
+    for cid, (symbol, display_name) in BINANCE_SYMBOLS.items():
+        try:
+            url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
+            r = requests.get(url, timeout=10)
+            r.raise_for_status()
+            usd = float(r.json()["price"])
+            if usd_to_ils:
+                lines.append(f"🔸 **{display_name}:** ${usd:,.0f} | {usd * usd_to_ils:,.0f} ₪")
+            else:
+                lines.append(f"🔸 **{display_name}:** ${usd:,.0f}")
+            ok = True
+        except Exception as e:
+            log.error(f"hourly_updates: כשל בשליפת מחיר {display_name}: {e}")
     return "\n".join(lines) if ok else ""
 
 
 def build_hourly_message() -> str:
     """מרכיב הודעה אחת משולבת. אם מקור מסוים נכשל, הוא פשוט לא מופיע - שאר המקורות עדיין נשלחים."""
-    sections = [get_weather_text(), get_currency_text(), get_crypto_text()]
+    rates = get_currency_rates()
+    usd_to_ils = rates.get("USD")
+    sections = [get_weather_text(), get_currency_text(rates), get_crypto_text(usd_to_ils)]
     sections = [s for s in sections if s]
     if not sections:
         return ""
