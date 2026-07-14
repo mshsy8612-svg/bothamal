@@ -8,7 +8,10 @@ import os
 import urllib3
 import threading
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from http.server import HTTPServer, BaseHTTPRequestHandler
+
+IL_TZ = ZoneInfo("Asia/Jerusalem")
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -123,7 +126,7 @@ def run_bot():
     last_hourly_key = None  # (date, hour) של העדכון השעתי האחרון שנשלח
     print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות")
     while True:
-        now = datetime.now()
+        now = datetime.now(IL_TZ)
         today = now.date()
 
         hourly_key = (today, now.hour)
