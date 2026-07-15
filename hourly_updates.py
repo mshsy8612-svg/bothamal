@@ -39,7 +39,7 @@ CRYPTO = ["bitcoin", "ethereum"]
 
 
 def get_weather_text() -> str:
-    entries = []
+    rows = []  # (name, now_temp, t_min, t_max, emoji)
     for city in WEATHER_CITIES:
         try:
             url = (
@@ -57,12 +57,22 @@ def get_weather_text() -> str:
             t_min = round(daily["temperature_2m_min"][0])
             t_max = round(daily["temperature_2m_max"][0])
             _, emoji = WEATHER_CODES.get(daily["weather_code"][0], ("", "🌡️"))
-            entries.append(f"{emoji}  **{city['name']}**  ·  {now_temp}°C  (טווח היום {t_min}°–{t_max}°)")
+            rows.append((city["name"], now_temp, t_min, t_max, emoji))
         except Exception as e:
             log.error(f"hourly_updates: כשל במזג אוויר עבור {city['name']}: {e}")
-    if not entries:
+    if not rows:
         return ""
-    lines = ["🌦️ **תחזית מזג אוויר**"] + entries
+
+    hottest = max(rows, key=lambda r: r[3])
+    coldest = min(rows, key=lambda r: r[2])
+
+    lines = [
+        "🌦️ **תחזית מזג אוויר להיום**",
+        f"🔥 הכי חם: **{hottest[0]}** ({hottest[3]}°)   ❄️ הכי קר: **{coldest[0]}** ({coldest[2]}°)",
+        "━━━━━━━━━━━━━━━━━━",
+    ]
+    for name, now_temp, t_min, t_max, emoji in rows:
+        lines.append(f"{emoji} **{name}:** {t_min}°–{t_max}°")
     return "\n".join(lines)
 
 
