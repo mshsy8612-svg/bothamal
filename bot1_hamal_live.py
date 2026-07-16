@@ -36,6 +36,12 @@ except ImportError:
     print("❌ שגיאה: קובץ haredi_updates.py חסר!")
     def build_daily_message(): return ""
 
+try:
+    from torah_updates import build_torah_message
+except ImportError:
+    print("❌ שגיאה: קובץ torah_updates.py חסר!")
+    def build_torah_message(): return ""
+
 LOG_DIR  = "logs"
 LOG_FILE = os.path.join(LOG_DIR, "bot1.log")
 
@@ -68,6 +74,13 @@ API_SECRET_KEY = os.environ.get("API_SECRET_KEY", _DEFAULT_API_SECRET_KEY)
 
 if API_SECRET_KEY == _DEFAULT_API_SECRET_KEY:
     print("⚠️  אזהרה: משתמש במפתח API בררת המחדל (חשוף בקוד). מומלץ להגדיר משתנה סביבה API_SECRET_KEY ולהחליף את המפתח.")
+
+# ערוץ נפרד ל"פינת תורה" - לא קשור בכלל ל-TARGET_URLS למעלה.
+# ⚠️ המפתח כאן זהה למפתח בררת המחדל החשוף - מומלץ בחום להחליף אותו (גם בצד השרת של הערוץ הזה עצמו)!
+_DEFAULT_TORAH_CHANNEL_URL = "https://entertainment-channel.onrender.com/api/import/post"
+_DEFAULT_TORAH_API_KEY = "k9f2sh392zh32_secure_random_key"
+TORAH_CHANNEL_URL = os.environ.get("TORAH_CHANNEL_URL", _DEFAULT_TORAH_CHANNEL_URL)
+TORAH_API_KEY = os.environ.get("TORAH_API_KEY", _DEFAULT_TORAH_API_KEY)
 
 APPROVED_LINK_SITES = ["אבו עלי אקספרס", "NZIV", "כל רגע", "המחדש", "רדיו קול חי", "רדיו קול ברמה"]
 
@@ -125,12 +138,31 @@ def send_to_targets(text, author, link=None):
             log.error(f"קריסה בשליחה ל-{url}: {e}")
             print(f"❌ קריסה בשליחה ל-{url}: {e}")
 
+def send_to_torah_channel(text, author):
+    """שליחה לערוץ התורני היחיד (entertainment-channel) - נפרד לגמרי מ-TARGET_URLS."""
+    payload = {
+        "text": text,
+        "author": author,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    headers = {"X-API-Key": TORAH_API_KEY}
+    try:
+        res = requests.post(TORAH_CHANNEL_URL, json=payload, headers=headers, timeout=10, verify=False)
+        if res.status_code == 200:
+            print(f"✅ נשלח לערוץ התורני ({TORAH_CHANNEL_URL.split('/')[2]})")
+        else:
+            print(f"⚠️ שגיאה בערוץ התורני: סטטוס {res.status_code}")
+    except Exception as e:
+        log.error(f"קריסה בשליחה לערוץ התורני: {e}")
+        print(f"❌ קריסה בשליחה לערוץ התורני: {e}")
+
 def run_bot():
     sb = ShabbatManager()
     sent_shabbat_shalom_date = None
     sent_shavua_tov_date = None
     last_hourly_key = None  # (date, hour) של העדכון השעתי האחרון שנשלח
     last_daily_key = None   # (date, hour) של העדכון היומי (זמנים/דף יומי/פרשה) האחרון שנשלח
+    last_torah_key = None   # (date, hour, half) של העדכון התורני האחרון שנשלח לערוץ הייעודי
     DAILY_UPDATE_HOURS = {6, 13, 20}  # 3 פעמים ביום: בוקר, צהריים, ערב
     print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות")
     while True:
@@ -165,6 +197,21 @@ def run_bot():
             except Exception as e:
                 log.error(f"שגיאה בשליחת עדכון יומי: {e}")
                 print(f"❌ שגיאה בשליחת עדכון יומי: {e}")
+
+        # פינת תורה (זמנים + דף יומי + פתגם מפרקי אבות) - כל חצי שעה, לערוץ הייעודי בלבד. לא בשבת.
+        torah_key = (today, now.hour, now.minute // 30)
+        if torah_key != last_torah_key and not sb.is_shabbat():
+            try:
+                msg = build_torah_message()
+                if msg:
+                    send_to_torah_channel(msg, "📖 פינת תורה")
+                    log.info("נשלח עדכון תורני לערוץ הייעודי")
+                    last_torah_key = torah_key
+                else:
+                    log.error("פינת תורה: build_torah_message החזיר ריק - ינסה שוב בסבב הבא")
+            except Exception as e:
+                log.error(f"שגיאה בשליחת פינת תורה: {e}")
+                print(f"❌ שגיאה בשליחת פינת תורה: {e}")
 
         if sb.should_send_shabbat_shalom() and sent_shabbat_shalom_date != today:
             try:
