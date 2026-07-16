@@ -1,7 +1,9 @@
 """
-תוכן תורני לערוץ ייעודי: זמני הלכה + דף יומי (מ-haredi_updates.py),
-משנה יומית / רמב"ם היומי / תנ"ך יומי (מ-Sefaria - ציטוט מקור בלבד, לא טקסט מלא),
-ופתגמים מתחלפים מפרקי אבות + פסוק היום (טקסט עתיק, נחלת הכלל, קצר).
+תוכן תורני לערוץ ייעודי, מאורגן בקטגוריות:
+1. זמנים ולוח יהודי (זמני הלכה + כל תוכניות הלימוד היומי)
+2. מחשבה ומוסר (פרקי אבות, פסוקים, אמרות חז"ל - טקסט עתיק/נחלת הכלל)
+
+מקורות: Hebcal.com + Sefaria.org (שני APIs חינמיים, ציטוט מקור בלבד - לא טקסט מלא).
 """
 import logging
 from datetime import datetime
@@ -15,7 +17,9 @@ log = logging.getLogger("bot1")
 IL_TZ = ZoneInfo("Asia/Jerusalem")
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; bothamal-bot/1.0)"}
 
-# מבחר מפרקי אבות - טקסט עתיק ונחלת הכלל, כל פריט קצר ומצוטט עם מקור.
+# ══════════════════════════════════════════════════════════════
+# קטגוריה: מחשבה ומוסר - טקסטים עתיקים, נחלת הכלל, כל פריט קצר ומצוטט
+# ══════════════════════════════════════════════════════════════
 PIRKEI_AVOT_QUOTES = [
     ("איזהו עשיר? השמח בחלקו", "פרקי אבות ד, א"),
     ("הוי דן את כל האדם לכף זכות", "פרקי אבות א, ו"),
@@ -35,9 +39,7 @@ PIRKEI_AVOT_QUOTES = [
     ("מרבה עצה מרבה תבונה", "פרקי אבות ב, ז"),
     ("הוי זנב לאריות ואל תהי ראש לשועלים", "פרקי אבות ד, טו"),
     ("שתוק וקבל שכר", "פרקי אבות ד, כג"),
-    ("הסתכל בשלושה דברים ואי אתה בא לידי עבירה: דע מה למעלה ממך", "פרקי אבות ב, א"),
     ("על שלושה דברים העולם עומד: על התורה ועל העבודה ועל גמילות חסדים", "פרקי אבות א, ב"),
-    ("במקום שאין איש, השתדל להיות איש", "פרקי אבות ב, ה"),
     ("אין לך אדם שאין לו שעה, ואין לך דבר שאין לו מקום", "פרקי אבות ד, ג"),
     ("כל שרוח הבריות נוחה הימנו, רוח המקום נוחה הימנו", "פרקי אבות ג, י"),
     ("הוי גולה למקום תורה", "פרקי אבות ד, יד"),
@@ -46,7 +48,6 @@ PIRKEI_AVOT_QUOTES = [
     ("לפום צערא אגרא", "פרקי אבות ה, כג"),
 ]
 
-# פסוקים קצרים מהתנ"ך - נחלת הכלל, מתחלף לפי יום בחודש
 VERSE_OF_DAY = [
     ("ה' עוז לעמו יתן, ה' יברך את עמו בשלום", "תהלים כ״ט, יא"),
     ("טוב ה' לכל, ורחמיו על כל מעשיו", "תהלים קמ״ה, ט"),
@@ -54,7 +55,6 @@ VERSE_OF_DAY = [
     ("לא בחיל ולא בכח כי אם ברוחי, אמר ה' צבאות", "זכריה ד, ו"),
     ("טוב לחסות בה' מבטח באדם", "תהלים קי״ח, ח"),
     ("סור מרע ועשה טוב, בקש שלום ורדפהו", "תהלים ל״ד, טו"),
-    ("איזהו מכובד? המכבד את הבריות", "פרקי אבות ד, א"),
     ("ואהבת לרעך כמוך", "ויקרא י״ט, יח"),
     ("בכל דרכיך דעהו והוא יישר אורחותיך", "משלי ג, ו"),
     ("שיוויתי ה' לנגדי תמיד", "תהלים ט״ז, ח"),
@@ -63,6 +63,23 @@ VERSE_OF_DAY = [
     ("הוי עז כנמר וקל כנשר ורץ כצבי וגיבור כארי לעשות רצון אביך שבשמים", "פרקי אבות ה, כ"),
     ("אשרי אדם עוז לו בך", "תהלים פ״ד, ו"),
     ("פותח את ידך ומשביע לכל חי רצון", "תהלים קמ״ה, טז"),
+    ("עולם חסד ייבנה", "תהלים פ״ט, ג"),
+]
+
+# אמרות חז"ל מהתלמוד והמדרש - נחלת הכלל, קצרות ומצוטטות
+TALMUD_SAYINGS = [
+    ("כל המקיים נפש אחת מישראל כאילו קיים עולם מלא", "משנה סנהדרין ד, ה"),
+    ("איזהו גיבור שבגיבורים? הכובש את יצרו", "אבות דרבי נתן, פרק כג"),
+    ("מרבה צדקה מרבה שלום", "פרקי אבות ב, ז"),
+    ("חייב אדם לומר: מתי יגיעו מעשי למעשה אבותי", "תנא דבי אליהו רבה"),
+    ("כל השונה הלכות בכל יום מובטח לו שהוא בן העולם הבא", "מגילה כח ע\"ב"),
+    ("גדולה מלאכה שמכבדת את בעליה", "נדרים מט ע\"ב"),
+    ("הוי מן הנעלבים ואינם עולבים", "גיטין לו ע\"ב"),
+    ("איזהו מכובד? המכבד את הבריות", "פרקי אבות ד, א"),
+    ("כל המצער חברו אפילו בדברים חייב", "בבא מציעא נח ע\"ב"),
+    ("תלמידי חכמים מרבים שלום בעולם", "ברכות סד ע\"א"),
+    ("אין אדם לומד תורה אלא במקום שליבו חפץ", "עבודה זרה יט ע\"א"),
+    ("כל המלמד את בן חברו תורה - מעלה עליו הכתוב כאילו ילדו", "סנהדרין יט ע\"ב"),
 ]
 
 
@@ -71,7 +88,7 @@ def get_dvar_torah_text() -> str:
         now = datetime.now(IL_TZ)
         slot = now.hour * 2 + (1 if now.minute >= 30 else 0)
         quote, source = PIRKEI_AVOT_QUOTES[slot % len(PIRKEI_AVOT_QUOTES)]
-        return f'📖 **פתגם מפרקי אבות**\n"{quote}"\n_{source}_'
+        return f'"{quote}"\n_{source}_'
     except Exception as e:
         log.error(f"torah_updates: כשל בבניית פתגם מפרקי אבות: {e}")
         return ""
@@ -81,58 +98,108 @@ def get_verse_of_day_text() -> str:
     try:
         day_index = datetime.now(IL_TZ).day
         verse, source = VERSE_OF_DAY[day_index % len(VERSE_OF_DAY)]
-        return f'✨ **פסוק היום**\n"{verse}"\n_{source}_'
+        return f'"{verse}"\n_{source}_'
     except Exception as e:
         log.error(f"torah_updates: כשל בבניית פסוק היום: {e}")
         return ""
 
 
-def _sefaria_calendar_item(title_en: str):
-    """שולף פריט בודד מלוח הלימוד היומי של Sefaria (ציטוט מקור בלבד, לא הטקסט המלא)."""
+def get_talmud_saying_text() -> str:
+    try:
+        now = datetime.now(IL_TZ)
+        idx = now.hour  # מתחלף כל שעה (שונה מקצב פרקי אבות, כדי לא לחזור על אותו שילוב)
+        saying, source = TALMUD_SAYINGS[idx % len(TALMUD_SAYINGS)]
+        return f'"{saying}"\n_{source}_'
+    except Exception as e:
+        log.error(f"torah_updates: כשל בבניית אמרת חז\"ל: {e}")
+        return ""
+
+
+# ══════════════════════════════════════════════════════════════
+# קטגוריה: לוח לימוד יומי - מ-Sefaria (ציטוט מקור בלבד, לא טקסט מלא)
+# שליפה אחת בלבד לכל ה-API, כדי לא לבזבז קריאות רשת מיותרות
+# ══════════════════════════════════════════════════════════════
+SEFARIA_DAILY_ITEMS = [
+    ("Daily Mishnah", "📘 משנה יומית"),
+    ("Daily Rambam", "📗 רמב\"ם היומי"),
+    ("Daily Rambam (3 Chapters)", "📗 רמב\"ם היומי (3 פרקים)"),
+    ("929", "📙 תנ\"ך יומי (929)"),
+    ("Halakhah Yomit", "⚖️ הלכה יומית"),
+    ("Tanya Yomi", "🔥 תניא יומי"),
+    ("Arukh HaShulchan Yomi", "📜 ערוך השולחן היומי"),
+    ("Chok LeYisrael", "📕 חוק לישראל"),
+    ("Yerushalmi Yomi", "📔 ירושלמי יומי"),
+]
+
+
+def _fetch_sefaria_calendar():
     try:
         url = "https://www.sefaria.org/api/calendars"
         params = {"diaspora": 0}  # לוח ישראל
         r = requests.get(url, params=params, headers=HEADERS, timeout=10)
         r.raise_for_status()
-        items = r.json().get("calendar_items", [])
-        for it in items:
-            if it.get("title", {}).get("en") == title_en:
-                return it.get("displayValue", {}).get("he") or it.get("displayValue", {}).get("en")
-        return None
+        return r.json().get("calendar_items", [])
     except Exception as e:
-        log.error(f"torah_updates: כשל בשליפת {title_en} מ-Sefaria: {e}")
-        return None
+        log.error(f"torah_updates: כשל בשליפת לוח הלימוד מ-Sefaria: {e}")
+        return []
 
 
-def get_mishna_yomit_text() -> str:
-    val = _sefaria_calendar_item("Daily Mishnah")
-    return f"📘 **משנה יומית:** {val}" if val else ""
-
-
-def get_rambam_yomi_text() -> str:
-    val = _sefaria_calendar_item("Daily Rambam") or _sefaria_calendar_item("Daily Rambam (3 Chapters)")
-    return f"📗 **רמב\"ם היומי:** {val}" if val else ""
-
-
-def get_tanakh_yomi_text() -> str:
-    val = _sefaria_calendar_item("929")
-    return f"📙 **תנ\"ך יומי (929):** {val}" if val else ""
+def get_sefaria_learning_lines() -> list:
+    """מחזיר רשימת שורות מוכנות (למניעת כפילות: אם גם 'Daily Rambam' וגם הגרסה עם 3 פרקים
+    זמינות, מוצגת רק הראשונה שנמצאה)."""
+    items = _fetch_sefaria_calendar()
+    if not items:
+        return []
+    by_title = {it.get("title", {}).get("en"): it for it in items}
+    lines = []
+    used_rambam = False
+    for title_en, label in SEFARIA_DAILY_ITEMS:
+        if "Rambam" in title_en:
+            if used_rambam:
+                continue
+        it = by_title.get(title_en)
+        if not it:
+            continue
+        val = it.get("displayValue", {}).get("he") or it.get("displayValue", {}).get("en")
+        if not val:
+            continue
+        lines.append(f"• {label}: {val}")
+        if "Rambam" in title_en:
+            used_rambam = True
+    return lines
 
 
 def build_torah_message() -> str:
-    """מרכיב הודעה תורנית מכמה מקורות. אם מקור נכשל - פשוט לא מופיע, שאר המקורות עדיין נשלחים."""
-    sections = [
-        get_dvar_torah_text(),
-        get_verse_of_day_text(),
-        get_zmanim_text(),
-        get_daf_yomi_text(),
-        get_mishna_yomit_text(),
-        get_rambam_yomi_text(),
-        get_tanakh_yomi_text(),
-    ]
-    sections = [s for s in sections if s]
-    if not sections:
-        return ""
+    """מרכיב הודעה תורנית מקוטלגת. כל מקור שנכשל פשוט לא מופיע - שאר המקורות עדיין נשלחים."""
     divider = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    blocks = []
+
+    # קטגוריה 1: זמנים הלכתיים
+    zmanim = get_zmanim_text()
+    if zmanim:
+        blocks.append(zmanim)
+
+    # קטגוריה 2: לוח לימוד יומי (דף יומי + כל מה שיש מ-Sefaria)
+    daf = get_daf_yomi_text()
+    sefaria_lines = get_sefaria_learning_lines()
+    learning_lines = ([f"📖 דף יומי: {daf.split(':', 1)[1].strip()}"] if daf else []) + sefaria_lines
+    if learning_lines:
+        blocks.append("📚 **לוח לימוד יומי**\n" + "\n".join(learning_lines))
+
+    # קטגוריה 3: מחשבה ומוסר
+    thoughts = []
+    dvar = get_dvar_torah_text()
+    if dvar:
+        thoughts.append(f"💭 **פתגם מפרקי אבות**\n{dvar}")
+    verse = get_verse_of_day_text()
+    if verse:
+        thoughts.append(f"✨ **פסוק היום**\n{verse}")
+    talmud = get_talmud_saying_text()
+    if talmud:
+        thoughts.append(f"📜 **אמרת חז\"ל**\n{talmud}")
+    blocks.extend(thoughts)
+
+    if not blocks:
+        return ""
     header = f"📖✨ **פינת תורה** ✨\n{divider}"
-    return f"{header}\n\n" + f"\n\n{divider}\n\n".join(sections)
+    return f"{header}\n\n" + f"\n\n{divider}\n\n".join(blocks)
