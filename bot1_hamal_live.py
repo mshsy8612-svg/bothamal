@@ -30,6 +30,12 @@ except ImportError:
     print("❌ שגיאה: קובץ hourly_updates.py חסר!")
     def build_hourly_message(): return ""
 
+try:
+    from haredi_updates import build_daily_message
+except ImportError:
+    print("❌ שגיאה: קובץ haredi_updates.py חסר!")
+    def build_daily_message(): return ""
+
 LOG_DIR  = "logs"
 LOG_FILE = os.path.join(LOG_DIR, "bot1.log")
 
@@ -124,6 +130,7 @@ def run_bot():
     sent_shabbat_shalom_date = None
     sent_shavua_tov_date = None
     last_hourly_key = None  # (date, hour) של העדכון השעתי האחרון שנשלח
+    last_daily_key = None   # date של העדכון היומי (זמנים/דף יומי/פרשה) האחרון שנשלח
     print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות")
     while True:
         now = datetime.now(IL_TZ)
@@ -142,6 +149,20 @@ def run_bot():
             except Exception as e:
                 log.error(f"שגיאה בשליחת עדכון שעתי: {e}")
                 print(f"❌ שגיאה בשליחת עדכון שעתי: {e}")
+
+        # עדכון יומי (זמנים הלכתיים, דף יומי, פרשה, עומר/ר"ח, יארצייט) - פעם ביום, מ-06:00
+        if today != last_daily_key and now.hour >= 6 and not sb.is_shabbat():
+            try:
+                msg = build_daily_message()
+                if msg:
+                    send_to_targets(msg, "📅 עדכון יומי")
+                    log.info("נשלח עדכון יומי")
+                    last_daily_key = today
+                else:
+                    log.error("עדכון יומי: build_daily_message החזיר ריק - ינסה שוב בסבב הבא")
+            except Exception as e:
+                log.error(f"שגיאה בשליחת עדכון יומי: {e}")
+                print(f"❌ שגיאה בשליחת עדכון יומי: {e}")
 
         if sb.should_send_shabbat_shalom() and sent_shabbat_shalom_date != today:
             try:

@@ -1,0 +1,185 @@
+"""
+עדכון יומי (לא שעתי!) עם תוכן רלוונטי לציבור החרדי:
+זמנים הלכתיים, דף יומי, פרשת השבוע, ספירת העומר / ראש חודש, ויארצייט.
+מקור: Hebcal.com (API חינמי, ללא מפתח). ראו https://www.hebcal.com/home/developer-apis
+"""
+import logging
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import requests
+
+log = logging.getLogger("bot1")
+IL_TZ = ZoneInfo("Asia/Jerusalem")
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; bothamal-bot/1.0)"}
+
+# ירושלים - geonameid קבוע ב-Hebcal (זהה למה שכבר בשימוש ב-shabbat.py)
+GEONAME_ID = 281184
+
+
+def _today_str() -> str:
+    return datetime.now(IL_TZ).strftime("%Y-%m-%d")
+
+
+def _fmt_time(iso_str: str) -> str:
+    """הופך '2026-07-14T05:49:00+03:00' ל-'05:49'"""
+    try:
+        return datetime.fromisoformat(iso_str).strftime("%H:%M")
+    except Exception:
+        return "?"
+
+
+# ══════════════════════════════════════════════════
+# זמנים הלכתיים
+# ══════════════════════════════════════════════════
+def get_zmanim_text() -> str:
+    try:
+        url = f"https://www.hebcal.com/zmanim?cfg=json&geonameid={GEONAME_ID}&date={_today_str()}"
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        r.raise_for_status()
+        t = r.json()["times"]
+
+        def g(*keys):
+            for k in keys:
+                if k in t:
+                    return _fmt_time(t[k])
+            return None
+
+        rows = [
+            ("עלות השחר", g("alotHaShachar")),
+            ("נץ החמה", g("sunrise")),
+            ('סוף זמן ק"ש (גר"א)', g("sofZmanShma")),
+            ('סוף זמן ק"ש (מג"א)', g("sofZmanShmaMGA")),
+            ("סוף זמן תפילה", g("sofZmanTfilla")),
+            ("חצות היום", g("chatzot")),
+            ("מנחה גדולה", g("minchaGedola")),
+            ("פלג המנחה", g("plagHaMincha")),
+            ("שקיעה", g("sunset")),
+            ("צאת הכוכבים", g("tzeit85deg", "tzeit72min", "tzeit50min", "tzeit42min")),
+        ]
+        rows = [(name, val) for name, val in rows if val]
+        if not rows:
+            return ""
+        lines = ["🕍 **זמני היום (ירושלים)**"]
+        lines += [f"• {name}: {val}" for name, val in rows]
+        return "\n".join(lines)
+    except Exception as e:
+        log.error(f"haredi_updates: כשל בשליפת זמנים הלכתיים: {e}")
+        return ""
+
+
+# ══════════════════════════════════════════════════
+# דף יומי
+# ══════════════════════════════════════════════════
+def get_daf_yomi_text() -> str:
+    try:
+        d = _today_str()
+        url = f"https://www.hebcal.com/hebcal?cfg=json&v=1&F=on&start={d}&end={d}"
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        r.raise_for_status()
+        items = r.json().get("items", [])
+        daf = next((it for it in items if it.get("category") == "dafyomi"), None)
+        if not daf:
+            return ""
+        return f"📖 **דף יומי:** {daf.get('hebrew', daf.get('title', ''))}"
+    except Exception as e:
+        log.error(f"haredi_updates: כשל בשליפת דף יומי: {e}")
+        return ""
+
+
+# ══════════════════════════════════════════════════
+# פרשת השבוע
+# ══════════════════════════════════════════════════
+def get_parasha_text() -> str:
+    try:
+        start = datetime.now(IL_TZ).date()
+        end = start + timedelta(days=8)  # מבטיח שבת אחת לפחות בטווח
+        url = (
+            "https://www.hebcal.com/hebcal?cfg=json&v=1&s=on&i=on"
+            f"&start={start.isoformat()}&end={end.isoformat()}"
+        )
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        r.raise_for_status()
+        items = r.json().get("items", [])
+        parasha = next((it for it in items if it.get("category") == "parashat"), None)
+        if not parasha:
+            return ""
+        return f"📜 **פרשת השבוע:** {parasha.get('hebrew', parasha.get('title', ''))}"
+    except Exception as e:
+        log.error(f"haredi_updates: כשל בשליפת פרשת השבוע: {e}")
+        return ""
+
+
+# ══════════════════════════════════════════════════
+# ספירת העומר / ראש חודש (מוצג רק כשרלוונטי)
+# ══════════════════════════════════════════════════
+def get_omer_or_roshchodesh_text() -> str:
+    try:
+        d = _today_str()
+        url = f"https://www.hebcal.com/hebcal?cfg=json&v=1&o=on&nx=on&start={d}&end={d}"
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        r.raise_for_status()
+        items = r.json().get("items", [])
+        omer = next((it for it in items if it.get("category") == "omer"), None)
+        if omer:
+            return f"🔥 **ספירת העומר:** {omer.get('hebrew', omer.get('title', ''))}"
+        rc = next((it for it in items if it.get("category") == "roshchodesh"), None)
+        if rc:
+            return f"🌙 **ראש חודש:** {rc.get('hebrew', rc.get('title', ''))}"
+        return ""
+    except Exception as e:
+        log.error(f"haredi_updates: כשל בשליפת עומר/ראש חודש: {e}")
+        return ""
+
+
+# ══════════════════════════════════════════════════
+# יארצייט - רשימה ידנית מצומצמת של גדולי ישראל מוכרים
+# ⚠️ חשוב: התאריכים כאן הוזנו ידנית ולא אומתו מול מקור הלכתי רשמי.
+# מומלץ לבדוק ולעדכן לפני שימוש בפועל!
+# מפתח: (חודש עברי, יום עברי) בכתיב Hebcal - Tishrei, Cheshvan, Kislev, Tevet,
+# Sh'vat, Adar, Adar I, Adar II, Nisan, Iyyar, Sivan, Tamuz, Av, Elul
+# ══════════════════════════════════════════════════
+YAHRZEIT_LIST = {
+    ("Elul", 24): "רבי ישראל מאיר הכהן - ה'חפץ חיים'",
+    ("Kislev", 5): "רבי אברהם ישעיהו קרליץ - ה'חזון איש'",
+    ("Cheshvan", 20): "רבי יעקב ישראל קניבסקי - ה'סטייפלר'",
+    ("Tamuz", 3): "הרבי מליובאוויטש - רבי מנחם מנדל שניאורסון",
+    ("Sh'vat", 27): "הבבא סאלי - רבי ישראל אבוחצירא",
+    ("Tishrei", 3): "רבי עובדיה יוסף",
+    ("Adar", 5): "רבי אהרן קוטלר",
+    ("Sivan", 19): "רבי משה פיינשטיין",
+}
+
+
+def get_yahrzeit_text() -> str:
+    try:
+        d = _today_str()
+        url = f"https://www.hebcal.com/converter?cfg=json&date={d}&g2h=1"
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        key = (data["hm"], data["hd"])
+        name = YAHRZEIT_LIST.get(key)
+        if not name:
+            return ""
+        return f"🕯️ **יארצייט היום:** {name}"
+    except Exception as e:
+        log.error(f"haredi_updates: כשל בבדיקת יארצייט: {e}")
+        return ""
+
+
+def build_daily_message() -> str:
+    """מרכיב הודעה יומית אחת. אם מקור נכשל, הוא פשוט לא מופיע."""
+    sections = [
+        get_zmanim_text(),
+        get_daf_yomi_text(),
+        get_parasha_text(),
+        get_omer_or_roshchodesh_text(),
+        get_yahrzeit_text(),
+    ]
+    sections = [s for s in sections if s]
+    if not sections:
+        return ""
+    divider = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    header = f"📅✨ **עדכון יומי** ✨\n{divider}"
+    return f"{header}\n\n" + f"\n\n{divider}\n\n".join(sections)

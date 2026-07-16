@@ -72,7 +72,7 @@ def get_weather_text() -> str:
         "━━━━━━━━━━━━━━━━━━",
     ]
     for name, now_temp, t_min, t_max, emoji in rows:
-        lines.append(f"{emoji} **{name}**  ·  עכשיו {now_temp}°  (בין {t_min}° ל-{t_max}°)")
+        lines.append(f"{emoji} **{name}**  ·  {now_temp}°")
     return "\n".join(lines)
 
 
