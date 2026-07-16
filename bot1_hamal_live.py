@@ -130,7 +130,8 @@ def run_bot():
     sent_shabbat_shalom_date = None
     sent_shavua_tov_date = None
     last_hourly_key = None  # (date, hour) של העדכון השעתי האחרון שנשלח
-    last_daily_key = None   # date של העדכון היומי (זמנים/דף יומי/פרשה) האחרון שנשלח
+    last_daily_key = None   # (date, hour) של העדכון היומי (זמנים/דף יומי/פרשה) האחרון שנשלח
+    DAILY_UPDATE_HOURS = {6, 13, 20}  # 3 פעמים ביום: בוקר, צהריים, ערב
     print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות")
     while True:
         now = datetime.now(IL_TZ)
@@ -150,14 +151,15 @@ def run_bot():
                 log.error(f"שגיאה בשליחת עדכון שעתי: {e}")
                 print(f"❌ שגיאה בשליחת עדכון שעתי: {e}")
 
-        # עדכון יומי (זמנים הלכתיים, דף יומי, פרשה, עומר/ר"ח, יארצייט) - פעם ביום, מ-06:00
-        if today != last_daily_key and now.hour >= 6 and not sb.is_shabbat():
+        # עדכון יומי (זמנים הלכתיים, דף יומי, פרשה, עומר/ר"ח, יארצייט) - 3 פעמים ביום (06:00, 13:00, 20:00)
+        daily_key = (today, now.hour)
+        if now.hour in DAILY_UPDATE_HOURS and daily_key != last_daily_key and not sb.is_shabbat():
             try:
                 msg = build_daily_message()
                 if msg:
                     send_to_targets(msg, "📅 עדכון יומי")
                     log.info("נשלח עדכון יומי")
-                    last_daily_key = today
+                    last_daily_key = daily_key
                 else:
                     log.error("עדכון יומי: build_daily_message החזיר ריק - ינסה שוב בסבב הבא")
             except Exception as e:
