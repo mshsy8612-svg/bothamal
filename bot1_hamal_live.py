@@ -162,7 +162,7 @@ def run_bot():
     sent_shavua_tov_date = None
     last_hourly_key = None  # (date, hour) של העדכון השעתי האחרון שנשלח
     last_daily_key = None   # (date, hour) של העדכון היומי (זמנים/דף יומי/פרשה) האחרון שנשלח
-    last_torah_key = None   # (date, hour, half) של העדכון התורני האחרון שנשלח לערוץ הייעודי
+    last_torah_key = None   # (date, hour) של העדכון התורני האחרון שנשלח לערוץ הייעודי
     DAILY_UPDATE_HOURS = {6, 13, 20}  # 3 פעמים ביום: בוקר, צהריים, ערב
     print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות")
     while True:
@@ -198,8 +198,8 @@ def run_bot():
                 log.error(f"שגיאה בשליחת עדכון יומי: {e}")
                 print(f"❌ שגיאה בשליחת עדכון יומי: {e}")
 
-        # פינת תורה (זמנים + דף יומי + פתגם מפרקי אבות) - כל חצי שעה, לערוץ הייעודי בלבד. לא בשבת.
-        torah_key = (today, now.hour, now.minute // 30)
+        # פינת תורה (זמנים + דף יומי + פתגם מפרקי אבות) - כל שעה עגולה בלבד, לערוץ הייעודי. לא בשבת.
+        torah_key = (today, now.hour)
         if torah_key != last_torah_key and not sb.is_shabbat():
             try:
                 msg = build_torah_message()

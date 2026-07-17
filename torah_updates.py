@@ -87,7 +87,7 @@ TALMUD_SAYINGS = [
 def get_dvar_torah_text() -> str:
     try:
         now = datetime.now(IL_TZ)
-        slot = now.hour * 2 + (1 if now.minute >= 30 else 0)
+        slot = now.hour
         quote, source = PIRKEI_AVOT_QUOTES[slot % len(PIRKEI_AVOT_QUOTES)]
         return f'"{quote}"\n_{source}_'
     except Exception as e:
