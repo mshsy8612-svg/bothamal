@@ -13,9 +13,6 @@ log = logging.getLogger("bot1")
 IL_TZ = ZoneInfo("Asia/Jerusalem")
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; bothamal-bot/1.0)"}
 
-# ירושלים - geonameid קבוע ב-Hebcal (זהה למה שכבר בשימוש ב-shabbat.py)
-GEONAME_ID = 281184
-
 
 def _today_str() -> str:
     return datetime.now(IL_TZ).strftime("%Y-%m-%d")
@@ -28,16 +25,37 @@ def _fmt_time(iso_str: str) -> str:
     except Exception:
         return "?"
 
+# ערים לזמנים הלכתיים - הראשונה מוצגת עם כל הזמנים המלאים, השאר בשורה קומפקטית
+ZMANIM_CITIES = [
+    {"name": "מודיעין עילית", "geonameid": 283015},
+    {"name": "ירושלים",       "geonameid": 281184},
+    {"name": "אלעד",          "geonameid": 295530},
+    {"name": "ביתר עילית",    "geonameid": 8199964},
+    {"name": "בני ברק",       "geonameid": 293253},
+    {"name": "טבריה",         "geonameid": 293322},
+]
+
+
+def _get_zmanim_raw(geoname_id: int):
+    """שולף את מילון הזמנים הגולמי (times) מ-Hebcal לעיר נתונה. מחזיר None בכשל."""
+    url = f"https://www.hebcal.com/zmanim?cfg=json&geonameid={geoname_id}&date={_today_str()}"
+    r = requests.get(url, headers=HEADERS, timeout=10)
+    r.raise_for_status()
+    return r.json()["times"]
+
 
 # ══════════════════════════════════════════════════
-# זמנים הלכתיים
+# זמנים הלכתיים - עיר ראשית (מלא) + ערים נוספות (קומפקטי)
 # ══════════════════════════════════════════════════
 def get_zmanim_text() -> str:
+    if not ZMANIM_CITIES:
+        return ""
+    primary = ZMANIM_CITIES[0]
+    lines = []
+
+    # עיר ראשית - כל הזמנים
     try:
-        url = f"https://www.hebcal.com/zmanim?cfg=json&geonameid={GEONAME_ID}&date={_today_str()}"
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        r.raise_for_status()
-        t = r.json()["times"]
+        t = _get_zmanim_raw(primary["geonameid"])
 
         def g(*keys):
             for k in keys:
@@ -58,14 +76,41 @@ def get_zmanim_text() -> str:
             ("צאת הכוכבים", g("tzeit85deg", "tzeit72min", "tzeit50min", "tzeit42min")),
         ]
         rows = [(name, val) for name, val in rows if val]
-        if not rows:
-            return ""
-        lines = ["🕍 **זמני היום (ירושלים)**"]
-        lines += [f"• {name}: {val}" for name, val in rows]
-        return "\n".join(lines)
+        if rows:
+            lines.append(f"🕍 **זמני היום ({primary['name']})**")
+            lines += [f"• {name}: {val}" for name, val in rows]
     except Exception as e:
-        log.error(f"haredi_updates: כשל בשליפת זמנים הלכתיים: {e}")
-        return ""
+        log.error(f"haredi_updates: כשל בשליפת זמנים ל-{primary['name']}: {e}")
+
+    # שאר הערים - נץ / שקיעה / צאת הכוכבים בלבד, שורה אחת לעיר
+    other_lines = []
+    for city in ZMANIM_CITIES[1:]:
+        try:
+            t = _get_zmanim_raw(city["geonameid"])
+
+            def g(*keys):
+                for k in keys:
+                    if k in t:
+                        return _fmt_time(t[k])
+                return None
+
+            sunrise = g("sunrise")
+            sunset = g("sunset")
+            tzeit = g("tzeit85deg", "tzeit72min", "tzeit50min", "tzeit42min")
+            if sunrise and sunset:
+                other_lines.append(
+                    f"• **{city['name']}**  ·  נץ {sunrise}  ·  שקיעה {sunset}  ·  צאת {tzeit or '?'}"
+                )
+        except Exception as e:
+            log.error(f"haredi_updates: כשל בשליפת זמנים ל-{city['name']}: {e}")
+
+    if other_lines:
+        if lines:
+            lines.append("")  # רווח קטן בין העיר הראשית לשאר
+        lines.append("🌆 **נץ / שקיעה / צאת הכוכבים - ערים נוספות**")
+        lines += other_lines
+
+    return "\n".join(lines)
 
 
 # ══════════════════════════════════════════════════
