@@ -11,7 +11,8 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from haredi_updates import get_zmanim_text, get_daf_yomi_text
+from haredi_updates import get_zmanim_text, get_daf_yomi_text, get_next_holiday_text
+from hourly_updates import get_weather_text
 
 log = logging.getLogger("bot1")
 IL_TZ = ZoneInfo("Asia/Jerusalem")
@@ -179,6 +180,11 @@ def build_torah_message() -> str:
     if zmanim:
         blocks.append(zmanim)
 
+    # קטגוריה 1.5: מזג אוויר
+    weather = get_weather_text()
+    if weather:
+        blocks.append(weather)
+
     # קטגוריה 2: לוח לימוד יומי (דף יומי + כל מה שיש מ-Sefaria)
     daf = get_daf_yomi_text()
     sefaria_lines = get_sefaria_learning_lines()
@@ -197,6 +203,9 @@ def build_torah_message() -> str:
     talmud = get_talmud_saying_text()
     if talmud:
         thoughts.append(f"📜 **אמרת חז\"ל**\n{talmud}")
+    holiday = get_next_holiday_text()
+    if holiday:
+        thoughts.append(holiday)
     blocks.extend(thoughts)
 
     if not blocks:

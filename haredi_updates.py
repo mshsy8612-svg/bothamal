@@ -25,20 +25,23 @@ def _fmt_time(iso_str: str) -> str:
     except Exception:
         return "?"
 
-# ערים לזמנים הלכתיים - הראשונה מוצגת עם כל הזמנים המלאים, השאר בשורה קומפקטית
-ZMANIM_CITIES = [
-    {"name": "מודיעין עילית", "geonameid": 283015},
-    {"name": "ירושלים",       "geonameid": 281184},
-    {"name": "אלעד",          "geonameid": 295530},
-    {"name": "ביתר עילית",    "geonameid": 8199964},
-    {"name": "בני ברק",       "geonameid": 293253},
-    {"name": "טבריה",         "geonameid": 293322},
-]
+from shabbat import CITIES as _SHABBAT_CITIES
+
+# ערים לזמנים הלכתיים - נשען על אותה רשימת ערים כמו shabbat.py (lat/lon, לא geonameid -
+# גילינו שב-shabbat.py יש geonameid כפול בטעות בין אלעד לבאר שבע, אז עדיף קואורדינטות מדויקות),
+# ובנוסף טבריה שלא קיימת שם. מודיעין עילית ראשונה (מקבלת את הפירוט המלא).
+_PRIMARY_CITY_NAME = "מודיעין עילית"
+_ordered = sorted(_SHABBAT_CITIES, key=lambda c: 0 if c["name"] == _PRIMARY_CITY_NAME else 1)
+ZMANIM_CITIES = [{"name": c["name"], "lat": c["lat"], "lon": c["lon"]} for c in _ordered]
+ZMANIM_CITIES.append({"name": "טבריה", "lat": 32.7922, "lon": 35.5312})
 
 
-def _get_zmanim_raw(geoname_id: int):
-    """שולף את מילון הזמנים הגולמי (times) מ-Hebcal לעיר נתונה. מחזיר None בכשל."""
-    url = f"https://www.hebcal.com/zmanim?cfg=json&geonameid={geoname_id}&date={_today_str()}"
+def _get_zmanim_raw(lat: float, lon: float):
+    """שולף את מילון הזמנים הגולמי (times) מ-Hebcal לפי קואורדינטות. מחזיר None בכשל."""
+    url = (
+        "https://www.hebcal.com/zmanim?cfg=json"
+        f"&latitude={lat}&longitude={lon}&tzid=Asia/Jerusalem&date={_today_str()}"
+    )
     r = requests.get(url, headers=HEADERS, timeout=10)
     r.raise_for_status()
     return r.json()["times"]
@@ -55,7 +58,7 @@ def get_zmanim_text() -> str:
 
     # עיר ראשית - כל הזמנים
     try:
-        t = _get_zmanim_raw(primary["geonameid"])
+        t = _get_zmanim_raw(primary["lat"], primary["lon"])
 
         def g(*keys):
             for k in keys:
@@ -86,7 +89,7 @@ def get_zmanim_text() -> str:
     other_lines = []
     for city in ZMANIM_CITIES[1:]:
         try:
-            t = _get_zmanim_raw(city["geonameid"])
+            t = _get_zmanim_raw(city["lat"], city["lon"])
 
             def g(*keys):
                 for k in keys:
@@ -213,6 +216,31 @@ def get_yahrzeit_text() -> str:
         return ""
 
 
+def get_next_holiday_text() -> str:
+    """מחשב כמה ימים נשארו לחג/מועד הקרוב ביותר (מה-60 יום הקרובים)."""
+    try:
+        start = datetime.now(IL_TZ).date()
+        end = start + timedelta(days=60)
+        url = (
+            "https://www.hebcal.com/hebcal?cfg=json&v=1&maj=on&min=on&i=on"
+            f"&start={start.isoformat()}&end={end.isoformat()}"
+        )
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        r.raise_for_status()
+        items = r.json().get("items", [])
+        upcoming = [it for it in items if it.get("category") == "holiday" and it.get("date", "") > start.isoformat()]
+        if not upcoming:
+            return ""
+        nearest = min(upcoming, key=lambda it: it["date"])
+        holiday_date = datetime.fromisoformat(nearest["date"]).date()
+        days_left = (holiday_date - start).days
+        name = nearest.get("hebrew", nearest.get("title", ""))
+        return f"🎉 **עד {name}:** {days_left} ימים"
+    except Exception as e:
+        log.error(f"haredi_updates: כשל בחישוב ימים לחג הבא: {e}")
+        return ""
+
+
 def build_daily_message() -> str:
     """מרכיב הודעה יומית אחת. אם מקור נכשל, הוא פשוט לא מופיע."""
     sections = [
@@ -221,6 +249,7 @@ def build_daily_message() -> str:
         get_parasha_text(),
         get_omer_or_roshchodesh_text(),
         get_yahrzeit_text(),
+        get_next_holiday_text(),
     ]
     sections = [s for s in sections if s]
     if not sections:
