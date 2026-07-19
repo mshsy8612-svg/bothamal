@@ -116,7 +116,7 @@ def get_zmanim_text() -> str:
     # שאר הערים - כל 10 הזמנים, באותה טבלה כמו העיר הראשית
     compact_cols = ZMAN_COLUMNS
     table_rows = []
-    for city in ZMANIM_CITIES[1:]:
+    for city in ZMANIM_CITIES:
         try:
             t = _get_zmanim_raw(city["lat"], city["lon"])
 
