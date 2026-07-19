@@ -63,14 +63,36 @@ ZMAN_COLUMNS = [
 
 
 # ══════════════════════════════════════════════════
-# זמנים הלכתיים - טבלה מלאה לכל הערים (בתוך code block: מיושר ופותר בעיות RTL)
+# זמנים הלכתיים - עיר ראשית עם כל הפירוט (רשימה) + שאר הערים בטבלה קטנה ונקייה (3 עמודות בלבד)
 # ══════════════════════════════════════════════════
 def get_zmanim_text() -> str:
     if not ZMANIM_CITIES:
         return ""
+    primary = ZMANIM_CITIES[0]
+    lines = []
 
-    table_rows = []  # (city_name, [val1, val2, ...])
-    for city in ZMANIM_CITIES:
+    # עיר ראשית - כל הזמנים, כרשימה (לא טבלה - זה מה שהתקבל הכי טוב)
+    try:
+        t = _get_zmanim_raw(primary["lat"], primary["lon"])
+
+        def g(*keys):
+            for k in keys:
+                if k in t:
+                    return _fmt_time(t[k])
+            return None
+
+        rows = [(full, g(*keys)) for _, keys, full in ZMAN_COLUMNS]
+        rows = [(name, val) for name, val in rows if val]
+        if rows:
+            lines.append(f"🕍 **זמני היום ({primary['name']})**")
+            lines += [f"• {name}: {val}" for name, val in rows]
+    except Exception as e:
+        log.error(f"haredi_updates: כשל בשליפת זמנים ל-{primary['name']}: {e}")
+
+    # שאר הערים - טבלה קטנה עם 3 עמודות בלבד (נץ / שקיעה / צאת), נקייה וממוקדת
+    compact_cols = [c for c in ZMAN_COLUMNS if c[0] in ("נץ", "שקיעה", "צאת")]
+    table_rows = []
+    for city in ZMANIM_CITIES[1:]:
         try:
             t = _get_zmanim_raw(city["lat"], city["lon"])
 
@@ -80,31 +102,27 @@ def get_zmanim_text() -> str:
                         return _fmt_time(t[k])
                 return "--"
 
-            values = [g(*keys) for _, keys, _ in ZMAN_COLUMNS]
+            values = [g(*keys) for _, keys, _ in compact_cols]
             table_rows.append((city["name"], values))
         except Exception as e:
             log.error(f"haredi_updates: כשל בשליפת זמנים ל-{city['name']}: {e}")
 
-    if not table_rows:
-        return ""
+    if table_rows:
+        headers = ["עיר"] + [h for h, _, _ in compact_cols]
+        md_lines = [
+            "| " + " | ".join(headers) + " |",
+            "|" + "|".join(["---"] * len(headers)) + "|",
+        ]
+        for name, values in table_rows:
+            md_lines.append("| " + " | ".join([name] + values) + " |")
 
-    headers = ["עיר"] + [h for h, _, _ in ZMAN_COLUMNS]
-    name_w = max(len(headers[0]), max(len(r[0]) for r in table_rows))
-    col_widths = [name_w] + [
-        max(len(headers[i + 1]), max(len(r[1][i]) for r in table_rows))
-        for i in range(len(ZMAN_COLUMNS))
-    ]
+        if lines:
+            lines.append("")
+        lines.append("🌆 **נץ / שקיעה / צאת - ערים נוספות**")
+        lines.append("")
+        lines.append("\n".join(md_lines))
 
-    def fmt_row(cells):
-        return "  ".join(cell.ljust(w) for cell, w in zip(cells, col_widths))
-
-    lines = [fmt_row(headers), "  ".join("-" * w for w in col_widths)]
-    for name, values in table_rows:
-        lines.append(fmt_row([name] + values))
-
-    table = "\n".join(lines)
-    legend = " · ".join(f"{h}={full}" for h, _, full in ZMAN_COLUMNS)
-    return "🕍 **זמני היום - כל הערים**\n```\n" + table + "\n```\n_" + legend + "_"
+    return "\n".join(lines)
 
 
 # ══════════════════════════════════════════════════
