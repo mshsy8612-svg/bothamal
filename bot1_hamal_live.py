@@ -42,6 +42,12 @@ except ImportError:
     print("❌ שגיאה: קובץ torah_updates.py חסר!")
     def build_torah_message(): return ""
 
+try:
+    from article_extractor import get_full_article_text
+except ImportError:
+    print("❌ שגיאה: קובץ article_extractor.py חסר!")
+    def get_full_article_text(entry, url, title): return ""
+
 LOG_DIR  = "logs"
 LOG_FILE = os.path.join(LOG_DIR, "bot1.log")
 
@@ -255,8 +261,16 @@ def run_bot():
                     if not is_safe(title):
                         continue
                     display = SOURCE_DISPLAY.get(src['name'], src['name'])
-                    msg = f"⚡ **מבזק** | {display}\n\n🔴 **{title}**"
                     link = entry.link if src['name'] in APPROVED_LINK_SITES else None
+                    full_text = ""
+                    try:
+                        full_text = get_full_article_text(entry, entry.link, title)
+                    except Exception as e:
+                        log.error(f"שגיאה בשליפת טקסט מלא עבור {entry.link}: {e}")
+                    if full_text and is_safe(full_text):
+                        msg = f"⚡ **מבזק** | {display}\n\n🔴 **{title}**\n\n{full_text}"
+                    else:
+                        msg = f"⚡ **מבזק** | {display}\n\n🔴 **{title}**"
                     send_to_targets(msg, display, link)
                     posted_links.add(entry.link)
                     if len(posted_links) > 1000:

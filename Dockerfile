@@ -8,6 +8,7 @@ COPY hourly_updates.py .
 COPY haredi_updates.py .
 COPY torah_updates.py .
 COPY cache_utils.py .
+COPY article_extractor.py .
 RUN mkdir -p logs
 # הפורט בפועל נקבע ע"י משתנה הסביבה PORT (ברירת מחדל 10000 בקוד עצמו)
 ENV PORT=10000
