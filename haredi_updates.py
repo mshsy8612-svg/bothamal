@@ -25,6 +25,28 @@ def _fmt_time(iso_str: str) -> str:
     except Exception:
         return "?"
 
+
+def _get_today_dates_str() -> str:
+    """מחזיר מחרוזת עם התאריך העברי והלועזי של היום, למשל 'יום ראשון, י״ט תמוז תשפ״ו · 19.07.2026'"""
+    try:
+        d = _today_str()
+        civil = datetime.now(IL_TZ).strftime("%d.%m.%Y")
+        url = f"https://www.hebcal.com/converter?cfg=json&date={d}&g2h=1"
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        hebrew_date = data.get("hebrew", "")
+        weekday = datetime.now(IL_TZ).strftime("%A")
+        weekday_he = {
+            "Monday": "יום שני", "Tuesday": "יום שלישי", "Wednesday": "יום רביעי",
+            "Thursday": "יום חמישי", "Friday": "יום שישי", "Saturday": "שבת", "Sunday": "יום ראשון",
+        }.get(weekday, weekday)
+        parts = [p for p in [weekday_he, hebrew_date] if p]
+        return " · ".join(parts + [civil]) if parts else civil
+    except Exception as e:
+        log.error(f"haredi_updates: כשל בשליפת תאריך עברי: {e}")
+        return datetime.now(IL_TZ).strftime("%d.%m.%Y")
+
 from shabbat import CITIES as _SHABBAT_CITIES
 
 # ערים לזמנים הלכתיים - נשען על אותה רשימת ערים כמו shabbat.py (lat/lon, לא geonameid -
@@ -70,6 +92,7 @@ def get_zmanim_text() -> str:
         return ""
     primary = ZMANIM_CITIES[0]
     lines = []
+    date_str = _get_today_dates_str()
 
     # עיר ראשית - כל הזמנים, כרשימה (לא טבלה - זה מה שהתקבל הכי טוב)
     try:
@@ -85,12 +108,13 @@ def get_zmanim_text() -> str:
         rows = [(name, val) for name, val in rows if val]
         if rows:
             lines.append(f"🕍 **זמני היום ({primary['name']})**")
+            lines.append(f"_{date_str}_")
             lines += [f"• {name}: {val}" for name, val in rows]
     except Exception as e:
         log.error(f"haredi_updates: כשל בשליפת זמנים ל-{primary['name']}: {e}")
 
-    # שאר הערים - טבלה קטנה עם 3 עמודות בלבד (נץ / שקיעה / צאת), נקייה וממוקדת
-    compact_cols = [c for c in ZMAN_COLUMNS if c[0] in ("נץ", "שקיעה", "צאת")]
+    # שאר הערים - טבלה עם 6 עמודות (נץ, קש-גר"א, חצות, פלג, שקיעה, צאת)
+    compact_cols = [c for c in ZMAN_COLUMNS if c[0] in ("נץ", "קש-גר״א", "חצות", "פלג", "שקיעה", "צאת")]
     table_rows = []
     for city in ZMANIM_CITIES[1:]:
         try:
@@ -118,7 +142,7 @@ def get_zmanim_text() -> str:
 
         if lines:
             lines.append("")
-        lines.append("🌆 **נץ / שקיעה / צאת - ערים נוספות**")
+        lines.append("🌆 **ערים נוספות**")
         lines.append("")
         lines.append("\n".join(md_lines))
 
