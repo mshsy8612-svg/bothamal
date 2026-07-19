@@ -85,36 +85,14 @@ ZMAN_COLUMNS = [
 
 
 # ══════════════════════════════════════════════════
-# זמנים הלכתיים - עיר ראשית עם כל הפירוט (רשימה) + שאר הערים בטבלה קטנה ונקייה (3 עמודות בלבד)
+# זמנים הלכתיים - טבלה אחת מאוחדת לכל הערים (מודיעין עילית ראשונה)
 # ══════════════════════════════════════════════════
 def get_zmanim_text() -> str:
     if not ZMANIM_CITIES:
         return ""
-    primary = ZMANIM_CITIES[0]
     lines = []
     date_str = _get_today_dates_str()
 
-    # עיר ראשית - כל הזמנים, כרשימה (לא טבלה - זה מה שהתקבל הכי טוב)
-    try:
-        t = _get_zmanim_raw(primary["lat"], primary["lon"])
-
-        def g(*keys):
-            for k in keys:
-                if k in t:
-                    return _fmt_time(t[k])
-            return None
-
-        rows = [(full, g(*keys)) for _, keys, full in ZMAN_COLUMNS]
-        rows = [(name, val) for name, val in rows if val]
-        if rows:
-            lines.append(f"🕍 **זמני היום ({primary['name']})**")
-            lines.append(f"📅 **{date_str}**")
-            lines += [f"• {name}: {val}" for name, val in rows]
-    except Exception as e:
-        log.error(f"haredi_updates: כשל בשליפת זמנים ל-{primary['name']}: {e}")
-
-    # שאר הערים - כל 10 הזמנים, באותה טבלה כמו העיר הראשית
-    compact_cols = ZMAN_COLUMNS
     table_rows = []
     for city in ZMANIM_CITIES:
         try:
@@ -126,13 +104,13 @@ def get_zmanim_text() -> str:
                         return _fmt_time(t[k])
                 return "--"
 
-            values = [g(*keys) for _, keys, _ in compact_cols]
+            values = [g(*keys) for _, keys, _ in ZMAN_COLUMNS]
             table_rows.append((city["name"], values))
         except Exception as e:
             log.error(f"haredi_updates: כשל בשליפת זמנים ל-{city['name']}: {e}")
 
     if table_rows:
-        headers = ["עיר"] + [h for h, _, _ in compact_cols]
+        headers = ["עיר"] + [h for h, _, _ in ZMAN_COLUMNS]
         md_lines = [
             "| " + " | ".join(headers) + " |",
             "|" + "|".join(["---"] * len(headers)) + "|",
@@ -140,9 +118,8 @@ def get_zmanim_text() -> str:
         for name, values in table_rows:
             md_lines.append("| " + " | ".join([name] + values) + " |")
 
-        if lines:
-            lines.append("")
-        lines.append("🌆 **ערים נוספות**")
+        lines.append("🕍 **זמני היום - כל הערים**")
+        lines.append(f"📅 **{date_str}**")
         lines.append("")
         lines.append("\n".join(md_lines))
 
