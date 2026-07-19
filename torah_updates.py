@@ -9,9 +9,11 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import requests
-
-from haredi_updates import get_zmanim_text, get_daf_yomi_value, get_next_holiday_text
+from cache_utils import cached_get_json
+from haredi_updates import (
+    get_zmanim_text, get_daf_yomi_value, get_next_holiday_text,
+    get_fast_times_text, get_candle_lighting_text, get_molad_text,
+)
 from hourly_updates import get_weather_text
 
 log = logging.getLogger("bot1")
@@ -125,7 +127,9 @@ SEFARIA_DAILY_ITEMS = [
     ("Daily Rambam", "📗 רמב\"ם היומי"),
     ("Daily Rambam (3 Chapters)", "📗 רמב\"ם היומי (3 פרקים)"),
     ("929", "📙 תנ\"ך יומי (929)"),
+    ("Nach Yomi", "📗 נ\"ך יומי"),
     ("Halakhah Yomit", "⚖️ הלכה יומית"),
+    ("Mishnah Berurah Yomi", "⚖️ משנה ברורה יומי"),
     ("Tanya Yomi", "🔥 תניא יומי"),
     ("Arukh HaShulchan Yomi", "📜 ערוך השולחן היומי"),
     ("Chok LeYisrael", "📕 חוק לישראל"),
@@ -135,11 +139,9 @@ SEFARIA_DAILY_ITEMS = [
 
 def _fetch_sefaria_calendar():
     try:
-        url = "https://www.sefaria.org/api/calendars"
-        params = {"diaspora": 0}  # לוח ישראל
-        r = requests.get(url, params=params, headers=HEADERS, timeout=10)
-        r.raise_for_status()
-        return r.json().get("calendar_items", [])
+        url = "https://www.sefaria.org/api/calendars?diaspora=0"  # לוח ישראל
+        data = cached_get_json(url, ttl=21600, headers=HEADERS)
+        return data.get("calendar_items", [])
     except Exception as e:
         log.error(f"torah_updates: כשל בשליפת לוח הלימוד מ-Sefaria: {e}")
         return []
@@ -179,6 +181,17 @@ def build_torah_message() -> str:
     holiday = get_next_holiday_text()
     if holiday:
         blocks.append(holiday)
+
+    # קטגוריה 0.5: זמני צום (מוצג רק ביום צום) / הדלקת נרות (רק בימי שישי) / מולד (רק בשבת מברכים)
+    fast = get_fast_times_text()
+    if fast:
+        blocks.append(fast)
+    candles = get_candle_lighting_text()
+    if candles:
+        blocks.append(candles)
+    molad = get_molad_text()
+    if molad:
+        blocks.append(molad)
 
     # קטגוריה 1: זמנים הלכתיים
     zmanim = get_zmanim_text()
