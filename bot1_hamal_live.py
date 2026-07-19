@@ -163,7 +163,9 @@ def run_bot():
     last_hourly_key = None  # (date, hour) של העדכון השעתי האחרון שנשלח
     last_daily_key = None   # (date, hour) של העדכון היומי (זמנים/דף יומי/פרשה) האחרון שנשלח
     last_torah_key = None   # (date, hour) של העדכון התורני האחרון שנשלח לערוץ הייעודי
+    torah_startup_sent = False  # שולח פעם אחת מיד בעליית הבוט (למשל אחרי דיפלוי), כדי לראות תוצאה מיד
     DAILY_UPDATE_HOURS = {6, 13, 20}  # 3 פעמים ביום: בוקר, צהריים, ערב
+    TORAH_UPDATE_HOURS = {6, 13, 20}  # גם פינת תורה - 3 פעמים ביום
     print(f"🚀 בוט חמ\"ל מופעל | {len(SOURCES)} מקורות")
     while True:
         now = datetime.now(IL_TZ)
@@ -198,15 +200,20 @@ def run_bot():
                 log.error(f"שגיאה בשליחת עדכון יומי: {e}")
                 print(f"❌ שגיאה בשליחת עדכון יומי: {e}")
 
-        # פינת תורה (זמנים + דף יומי + פתגם מפרקי אבות) - כל שעה עגולה בלבד, לערוץ הייעודי. לא בשבת.
+        # פינת תורה (זמנים + דף יומי + פתגם מפרקי אבות) - 3 פעמים ביום, לערוץ הייעודי. לא בשבת.
+        # + שליחה חד-פעמית מיד בעליית הבוט (אחרי כל דיפלוי/עדכון קוד) כדי לראות תוצאה מיד, בלי קשר לתזמון.
         torah_key = (today, now.hour)
-        if torah_key != last_torah_key and not sb.is_shabbat():
+        should_send_torah_now = not sb.is_shabbat() and (
+            not torah_startup_sent or (now.hour in TORAH_UPDATE_HOURS and torah_key != last_torah_key)
+        )
+        if should_send_torah_now:
             try:
                 msg = build_torah_message()
                 if msg:
                     send_to_torah_channel(msg, "📖 פינת תורה")
                     log.info("נשלח עדכון תורני לערוץ הייעודי")
                     last_torah_key = torah_key
+                    torah_startup_sent = True
                 else:
                     log.error("פינת תורה: build_torah_message החזיר ריק - ינסה שוב בסבב הבא")
             except Exception as e:

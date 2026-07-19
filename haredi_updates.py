@@ -108,13 +108,13 @@ def get_zmanim_text() -> str:
         rows = [(name, val) for name, val in rows if val]
         if rows:
             lines.append(f"🕍 **זמני היום ({primary['name']})**")
-            lines.append(f"_{date_str}_")
+            lines.append(f"📅 **{date_str}**")
             lines += [f"• {name}: {val}" for name, val in rows]
     except Exception as e:
         log.error(f"haredi_updates: כשל בשליפת זמנים ל-{primary['name']}: {e}")
 
-    # שאר הערים - טבלה עם 6 עמודות (נץ, קש-גר"א, חצות, פלג, שקיעה, צאת)
-    compact_cols = [c for c in ZMAN_COLUMNS if c[0] in ("נץ", "קש-גר״א", "חצות", "פלג", "שקיעה", "צאת")]
+    # שאר הערים - כל 10 הזמנים, באותה טבלה כמו העיר הראשית
+    compact_cols = ZMAN_COLUMNS
     table_rows = []
     for city in ZMANIM_CITIES[1:]:
         try:
