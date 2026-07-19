@@ -175,6 +175,11 @@ def build_torah_message() -> str:
     divider = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
     blocks = []
 
+    # קטגוריה 0: ספירה לחג הבא - בהתחלה, כדי שיהיה בולט מיד
+    holiday = get_next_holiday_text()
+    if holiday:
+        blocks.append(holiday)
+
     # קטגוריה 1: זמנים הלכתיים
     zmanim = get_zmanim_text()
     if zmanim:
@@ -203,9 +208,6 @@ def build_torah_message() -> str:
     talmud = get_talmud_saying_text()
     if talmud:
         thoughts.append(f"📜 **אמרת חז\"ל**\n{talmud}")
-    holiday = get_next_holiday_text()
-    if holiday:
-        thoughts.append(holiday)
     blocks.extend(thoughts)
 
     if not blocks:
