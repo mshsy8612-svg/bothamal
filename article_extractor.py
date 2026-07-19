@@ -47,30 +47,49 @@ def _strip_urls_and_boilerplate(text: str) -> str:
     return text
 
 
-def _clean(raw_html: str) -> str:
-    if not raw_html:
-        return ""
-    text = re.sub(r"<[^>]*>|&nbsp;", " ", raw_html)
-    text = html.unescape(text)  # &#8221; -> ” וכו'
+def _clean_fragment(text: str) -> str:
+    """ניקוי טקסט בודד (כבר בלי תגי HTML): פענוח ישויות, הסרת אשפה/קישורים, נרמול רווחים."""
+    text = html.unescape(text)
     text = _strip_urls_and_boilerplate(text)
     return " ".join(text.split()).strip()
 
 
+def _extract_paragraphs(raw_html: str) -> str:
+    """מפרק HTML לפסקאות נפרדות (לפי <p> אם יש, אחרת <br>, אחרת גוש אחד), מנקה כל פסקה
+    בנפרד (כך שפסקת-אשפה בלבד נעלמת לגמרי ולא משאירה שורה ריקה מיותרת), ומחבר אותן
+    בחזרה עם מעברי שורה כפולים כדי לשמור על מבנה קריא."""
+    if not raw_html:
+        return ""
+    soup = BeautifulSoup(raw_html, "html.parser")
+    p_tags = soup.find_all("p")
+    if p_tags:
+        raw_paragraphs = [p.get_text(" ", strip=True) for p in p_tags]
+    else:
+        raw_paragraphs = soup.get_text("\n\n", strip=True).split("\n\n")
+
+    cleaned = []
+    for p in raw_paragraphs:
+        c = _clean_fragment(p)
+        if len(c) > 20:  # מסנן פסקאות שהתרוקנו לגמרי אחרי הסרת אשפה, או שהיו קצרות מדי מלכתחילה
+            cleaned.append(c)
+    return "\n\n".join(cleaned)
+
+
 def _from_feed_entry(entry) -> str:
-    """מנסה לשלוף טקסט מלא ישירות מה-RSS entry (content:encoded או summary)."""
+    """מנסה לשלוף טקסט מלא ישירות מה-RSS entry (content:encoded או summary), עם פסקאות שמורות."""
     try:
         content_list = entry.get("content")
         if content_list:
-            text = _clean(content_list[0].get("value", ""))
+            text = _extract_paragraphs(content_list[0].get("value", ""))
             if len(text) > MIN_REAL_CONTENT_CHARS:
                 return text
     except Exception:
         pass
-    return _clean(entry.get("summary", ""))
+    return _extract_paragraphs(entry.get("summary", ""))
 
 
 def _from_article_page(url: str) -> str:
-    """שולף ומנסה לחלץ את גוף הכתבה מעמוד ה-HTML עצמו, בצורה גנרית (לא ספציפי לאתר)."""
+    """שולף ומנסה לחלץ את גוף הכתבה מעמוד ה-HTML עצמו, בצורה גנרית (לא ספציפי לאתר), עם פסקאות שמורות."""
     try:
         r = requests.get(url, headers=HEADERS, timeout=10, verify=False)
         r.raise_for_status()
@@ -78,8 +97,7 @@ def _from_article_page(url: str) -> str:
         for selector in CONTENT_SELECTORS:
             el = soup.select_one(selector)
             if el:
-                paragraphs = [p.get_text(" ", strip=True) for p in el.find_all("p")]
-                text = _clean(" ".join(p for p in paragraphs if len(p) > 20))
+                text = _extract_paragraphs(str(el))
                 if len(text) > MIN_REAL_CONTENT_CHARS:
                     return text
         return ""
