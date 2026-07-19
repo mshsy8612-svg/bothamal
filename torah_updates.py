@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from haredi_updates import get_zmanim_text, get_daf_yomi_text, get_next_holiday_text
+from haredi_updates import get_zmanim_text, get_daf_yomi_value, get_next_holiday_text
 from hourly_updates import get_weather_text
 
 log = logging.getLogger("bot1")
@@ -191,9 +191,9 @@ def build_torah_message() -> str:
         blocks.append(weather)
 
     # קטגוריה 2: לוח לימוד יומי (דף יומי + כל מה שיש מ-Sefaria)
-    daf = get_daf_yomi_text()
+    daf = get_daf_yomi_value()
     sefaria_lines = get_sefaria_learning_lines()
-    learning_lines = ([f"📖 דף יומי: {daf.split(':', 1)[1].strip()}"] if daf else []) + sefaria_lines
+    learning_lines = ([f"📖 דף יומי: {daf}"] if daf else []) + sefaria_lines
     if learning_lines:
         blocks.append("📚 **לוח לימוד יומי**\n" + "\n".join(learning_lines))
 

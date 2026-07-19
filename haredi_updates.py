@@ -129,7 +129,8 @@ def get_zmanim_text() -> str:
 # ══════════════════════════════════════════════════
 # דף יומי
 # ══════════════════════════════════════════════════
-def get_daf_yomi_text() -> str:
+def get_daf_yomi_value() -> str:
+    """מחזיר רק את הערך הגולמי (למשל 'חולין דף פ'), בלי עיצוב - לשימוש כשצריך להרכיב טקסט בעצמך."""
     try:
         d = _today_str()
         url = f"https://www.hebcal.com/hebcal?cfg=json&v=1&F=on&start={d}&end={d}"
@@ -139,10 +140,15 @@ def get_daf_yomi_text() -> str:
         daf = next((it for it in items if it.get("category") == "dafyomi"), None)
         if not daf:
             return ""
-        return f"📖 **דף יומי:** {daf.get('hebrew', daf.get('title', ''))}"
+        return daf.get("hebrew", daf.get("title", ""))
     except Exception as e:
         log.error(f"haredi_updates: כשל בשליפת דף יומי: {e}")
         return ""
+
+
+def get_daf_yomi_text() -> str:
+    val = get_daf_yomi_value()
+    return f"📖 **דף יומי:** {val}" if val else ""
 
 
 # ══════════════════════════════════════════════════
